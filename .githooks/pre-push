@@ -1,0 +1,57 @@
+#!/bin/sh
+# appopsy pre-push: before anything leaves this machine, run both third-party
+# checks (see CLAUDE.md) on EVERY commit being pushed, not just the tip, because
+# history is what becomes public. Needs your app list outside the repo at
+# ~/.config/appopsy/my-apps.txt (or $APPOPSY_THIRD_PARTY_LIST). Fails closed.
+# Install once with:  git config core.hooksPath .githooks
+set -eu
+repo=$(git rev-parse --show-toplevel)
+appopsy="$repo/.venv/bin/appopsy"
+list="${APPOPSY_THIRD_PARTY_LIST:-$HOME/.config/appopsy/my-apps.txt}"
+if [ ! -x "$appopsy" ]; then
+    echo "pre-push: $appopsy not found; run 'uv sync' first." >&2
+    exit 1
+fi
+if [ ! -f "$list" ]; then
+    echo "pre-push: no app list at $list, so the third-party checks can't run." >&2
+    echo "Create it from a case folder: cp cases/<case>/raw/pm-list-packages-3p.txt $list" >&2
+    exit 1
+fi
+zero=0000000000000000000000000000000000000000
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/appopsy-pre-push.XXXXXX")
+trap 'rm -rf "$tmp"' EXIT INT TERM
+# Your non-allowlisted app names, for checking commit messages.
+"$repo/.venv/bin/python" - "$list" >"$tmp/names" <<'PY'
+import sys
+from pathlib import Path
+from appopsy.redact_packages import DEFAULT_ALLOWLIST, load_third_party_list
+allowed = {a.name for a in DEFAULT_ALLOWLIST}
+print("\n".join(sorted(load_third_party_list(Path(sys.argv[1])) - allowed)))
+PY
+status=0
+while read -r local_ref local_sha remote_ref remote_sha; do
+    [ "$local_sha" = "$zero" ] && continue  # deleting a ref: nothing to check
+    if [ "$remote_sha" = "$zero" ]; then
+        commits=$(git rev-list "$local_sha" --not --remotes)
+    else
+        commits=$(git rev-list "$remote_sha..$local_sha")
+    fi
+    for c in $commits; do
+        dir="$tmp/$c"
+        mkdir -p "$dir"
+        git archive "$c" | tar -x -C "$dir"
+        short=$(git rev-parse --short "$c")
+        if [ -d "$dir/tests/fixtures" ]; then
+            "$appopsy" redact-fixture --check --third-party-list "$list" "$dir/tests/fixtures" >/dev/null 2>&1 \
+                || { echo "pre-push: $short: fixture check failed (run it on tests/fixtures to see why)" >&2; status=1; }
+        fi
+        "$appopsy" redact-fixture --check --apps-only --third-party-list "$list" "$dir" >/dev/null 2>&1 \
+            || { echo "pre-push: $short: one of your apps is named in the tree" >&2; status=1; }
+        if [ -s "$tmp/names" ] && git log -1 --format=%B "$c" | grep -qFf "$tmp/names"; then
+            echo "pre-push: $short: one of your apps is named in the commit message" >&2; status=1
+        fi
+        rm -rf "$dir"
+    done
+done
+[ "$status" -eq 0 ] && echo "pre-push: both third-party checks passed for every commit" >&2
+exit "$status"

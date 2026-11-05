@@ -1,0 +1,36 @@
+id: chatty-wakeups
+pack: privacy
+title: Wakes the phone often
+severity: notable
+function: chatty-wakeups
+description: >
+  The app set wakeup alarms (RTC_WAKEUP / ELAPSED_REALTIME_WAKEUP) that pulled the
+  phone out of sleep more often than the threshold, averaged over the time since
+  the phone last started.
+rationale: >
+  Each wakeup alarm brings the device out of low-power mode and holds a wake lock
+  while the app runs code, so frequent wakeups drain the battery and let an app do
+  work (sync, analytics, checking in with its servers) while you aren't using it.
+benign_explanations:
+  - Messaging and calling apps use periodic wakeups to keep a connection for incoming messages.
+  - Alarm clocks, reminders and calendar notifications need to wake the phone on time.
+  - A burst after a reboot or a long time offline can push the average up for a while.
+remediation:
+  - "Settings > Apps > (the app) > App battery usage: choose Restricted or Optimised."
+  - If you don't need the app's notifications, turn them off; many apps wake the phone only to check for them.
+thresholds:
+  wakeups_per_hour:
+    value: 10
+    unit: wakeup alarms (RTC_WAKEUP and ELAPSED_REALTIME_WAKEUP) per hour
+    source:
+      title: Play Console Help, "Excessive wake-ups" (Android vitals)
+      url: https://support.google.com/googleplay/android-developer/answer/7385505
+      checked: 2026-11-01
+      verified: true
+      note: >
+        Android vitals counts more than 10 wake-ups per hour in a battery session,
+        only while the device is not charging, and only ELAPSED_REALTIME_WAKEUP
+        and RTC_WAKEUP alarms. appopsy counts only those two alarm types too, but
+        dumpsys alarm gives a since-boot total, so its rate is wakeups since boot
+        divided by uptime, charging time included. That approximates the
+        battery-session rate and likely understates it.

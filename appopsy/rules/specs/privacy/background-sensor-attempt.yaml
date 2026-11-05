@@ -1,0 +1,21 @@
+id: background-sensor-attempt
+pack: privacy
+title: Tried to use a sensor in the background and was refused
+severity: notable
+function: background-sensor-attempt
+description: >
+  Android recorded the app trying to use location, the camera, the microphone or
+  body sensors while it was in the background, at a time when it was only allowed
+  to use them in the foreground (or not at all), and refused it.
+rationale: >
+  The attempt shows the app wanted sensor data while you weren't using it. Your
+  setting worked, but the app kept trying: repeated refused attempts can mean it
+  is built to collect data in the background where it is allowed to.
+benign_explanations:
+  - Some apps ask for location when they start or resume and are briefly classed as background while doing so.
+  - A feature you enabled (location sharing, check-ins, nearby friends) may try to run in the background.
+  - Libraries inside the app (ads, analytics, maps) can make the request without the app's own features needing it.
+remediation:
+  - "Keep the permission at \"Only while using the app\" (Settings > Apps > (the app) > Permissions)."
+  - Turn off the feature that needs background access if you don't use it.
+  - "If the attempts continue, set the app's battery use to Restricted."

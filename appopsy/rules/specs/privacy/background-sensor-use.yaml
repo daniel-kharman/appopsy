@@ -1,0 +1,40 @@
+id: background-sensor-use
+pack: privacy
+title: Used a sensor while not on screen
+severity: notable
+severities: [concern]  # microphone or camera in the background proper
+function: background-sensor-use
+description: >
+  Android allowed the app to use location, the camera, the microphone or body
+  sensors while it wasn't on screen: in the background, or from a foreground
+  service (which shows a notification while it runs). These are deliveries the
+  app received, not requests it made. Camera or microphone use in the background
+  proper is a concern; from a foreground service only, Android shows a
+  notification and the privacy indicator while it happens, so it's notable.
+rationale: >
+  This is sensor data actually collected while you weren't looking at the app.
+  The microphone and camera matter most: they can capture what's around you.
+  Background location builds a record of where you go.
+benign_explanations:
+  - Navigation keeps using location from a foreground service while the screen is off or another app is open.
+  - Call and voice-message apps use the microphone from a foreground service during a call or recording.
+  - Features you turned on (location sharing, location history, fitness tracking) use sensors in the background by design.
+remediation:
+  - "Settings > Apps > (the app) > Permissions > Location: choose \"Allow only while using the app\"."
+  - "Settings > Apps > (the app) > Permissions > Microphone or Camera: choose \"Ask every time\" or \"Don't allow\"."
+  - "Settings > Security & privacy > Privacy > Privacy dashboard shows when each app used them in the last 24 hours."
+source:
+  title: Severity by sensor, decided for appopsy
+  checked: 2026-11-01
+  note: >
+    No threshold: one background delivery is enough to report. Severity follows the
+    sensor and how visible the use was: concern for the microphone or camera used
+    in the background or cached state (bg, cch), where nothing on screen shows it;
+    notable for the microphone or camera used only from a foreground service
+    (fgsvc), because Android shows the service's notification and the privacy
+    indicator while it runs; notable for location and body sensors in any of these
+    states (body sensors grouped with location by appopsy, not by an external
+    source). Only Access events in the bg, cch and fgsvc states count, for
+    FINE_LOCATION, COARSE_LOCATION, CAMERA, RECORD_AUDIO and BODY_SENSORS; location
+    requests (MONITOR_LOCATION, MONITOR_HIGH_POWER_LOCATION) and GPS never do,
+    because they don't show that anything was delivered.

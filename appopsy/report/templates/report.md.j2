@@ -1,0 +1,212 @@
+{#- Rule text (from the YAML specs in the repo) is Markdown and goes in as is.
+    Anything from the device goes through md / code / cell. Headings marked
+    " @@anchor:KEY@@" and links to "#@@ref:KEY@@" are resolved to GitHub-style
+    slugs after rendering (markdown.resolve_anchors). -#}
+{% macro md_table(t) %}
+| {{ t.headers|join(" | ") }} |
+|{% for h in t.headers %}---|{% endfor %}
+
+{% for row in t.rows %}
+| {{ row|map("cell")|join(" | ") }} |
+{% endfor %}
+
+{% endmacro %}
+{% set d = r.device %}
+# appopsy report: {{ (d.model or "unknown phone")|md }}
+
+{{ ((d.manufacturer ~ " ") if d.manufacturer else "")|md }}{{ (d.model or "Unknown model")|md }}, Android {{ (d.android_release or "?")|md }}{% if d.sdk %} (SDK {{ d.sdk }}){% endif %}, security patch {{ d.security_patch or "unknown" }}.
+Collected {{ r.collected_label }}, with appopsy {{ r.version }}.
+
+{% if r.redacted is not none %}
+{% if r.redacted %}
+> **Redacted copy for sharing.** {{ r.redacted }} app(s) that aren't on appopsy's
+> public list are shown as "Unlisted app" with an id that changes every time a
+> report is made, and the names of their jobs and alarms are hidden. System apps
+> and well-known apps keep their names. Times are shown as days before collection.
+> Check it before you share it.
+{% else %}
+> **Redacted copy for sharing.** Every app in it is a system app or a well-known
+> app, so all keep their names. Times are shown as days before collection. Check it
+> before you share it.
+{% endif %}
+
+{% endif %}
+{{ r.headline|map("md")|join(" ") }}
+
+This report says what the apps on this phone are allowed to do, what Android
+recorded them doing, and what they tried to do and were refused. appopsy only
+reads: nothing on the phone was changed. Each finding says what was seen, why it
+may matter, what is probably harmless about it, and what you can do.
+
+## Summary
+
+{% for p in r.packs %}
+{% if not p.rules %}
+{{ p.pack|title }}: no rules are available yet, so nothing was checked.
+
+{% else %}
+| {{ p.pack|title }} findings | Count |
+|---|---:|
+{% for s in p.severities %}
+| {{ s|title }} | {{ p.counts[s] }} |
+{% endfor %}
+| System components (listed separately) | {{ p.system|map(attribute="findings")|map("length")|sum }} |
+
+{% endif %}
+{% endfor %}
+{% if r.apps %}
+{{ r.apps|length }} apps have findings; [Per-app detail](#@@ref:apps@@) lists them, most severe first.
+{% else %}
+No findings about the apps on this phone.
+{% endif %}
+
+{% for p in r.packs %}
+## {{ p.pack|title }} findings
+
+{% if not p.rules %}
+No {{ p.pack }} rules are available yet.
+
+{% elif not p.by_severity %}
+No {{ p.pack }} findings about the apps on this phone.
+
+{% endif %}
+{% for sev, groups in p.by_severity %}
+### {{ sev|title }}
+
+{% for g in groups %}
+#### {{ g.spec.title }} @@anchor:{{ g.anchor }}@@
+
+{{ g.spec.description }}
+
+**Why it matters:** {{ g.spec.rationale }}
+
+{% if g.compact %}
+{{ g.compact_intro }} Details: [appendix](#@@ref:appendix-{{ g.appendix }}@@).
+
+{{ md_table(g.compact) }}
+{% endif %}
+{% for v in ([] if g.compact else g.findings) %}
+**{{ v.app|md }}**{{ v.rest|md }}
+
+{% if v.note %}
+Note: {{ v.note }}
+
+{% endif %}
+{% for t in v.tables %}
+{{ md_table(t) }}
+{% endfor %}
+{% if v.more %}
+Full job list: [appendix](#@@ref:appendix-{{ v.more }}@@).
+{% endif %}
+{% if v.evidence %}
+Evidence: {{ v.evidence|map("md")|join("; ") }}
+
+{% elif v.more %}
+
+{% endif %}
+{% endfor %}
+**Probably harmless:**
+
+{% for b in g.spec.benign_explanations %}
+- {{ b }}
+{% endfor %}
+
+{% endfor %}
+{% endfor %}
+{% endfor %}
+## Per-app detail @@anchor:apps@@
+
+{% for a in r.apps %}
+- **{{ a.label|md }}**, {{ a.origin|md }}: {% for v in a.findings %}[{{ v.finding.title }}](#@@ref:{{ v.anchor }}@@) ({{ v.finding.severity }}){% if not loop.last %}; {% endif %}{% endfor %}
+
+{% else %}
+No findings about the apps on this phone.
+{% endfor %}
+
+## What you can do
+
+{% for g in r.remediation %}
+### {{ g.spec.title }}
+
+{% for action in g.actions %}
+- {{ action|md }}
+{% endfor %}
+{% if g.actions %}
+
+In general:
+
+{% endif %}
+{% for step in g.spec.remediation %}
+- {{ step }}
+{% endfor %}
+
+{% else %}
+Nothing to act on.
+
+{% endfor %}
+## System components
+
+These packages are part of Android itself and have no app icon. Findings about
+them are listed for completeness at the lowest level of their scale and are not
+counted with the apps above. They can't be uninstalled, and most can't be
+restricted. Apps that came with the phone and have an icon (such as Maps) are
+listed with your other apps above.
+
+{% for p in r.packs %}
+{% if p.system_table %}
+{{ md_table(p.system_table) }}
+{% for component, note in p.system_notes %}
+- **{{ component|md }}**: {{ note }}
+{% endfor %}
+
+Each finding in full: [appendix](#@@ref:appendix-system@@).
+
+{% endif %}
+{% endfor %}
+## How this report was made
+
+{% for spec in r.rules_run %}
+- **{{ spec.title }}** (`{{ spec.id }}`, {{ spec.pack }}, {{ spec.severity }}).
+{% for name, t in spec.thresholds.items() %}
+  Threshold `{{ name }}`: {{ "%g"|format(t.value) }} {{ t.unit }}. Source: [{{ t.source.title }}]({{ t.source.url }}), checked {{ t.source.checked }}, {{ "verified" if t.source.verified else "not verified" }}.{% if t.source.note %} {{ t.source.note|trim }}{% endif %}
+
+{% endfor %}
+{% if spec.source %}
+  No threshold: {{ spec.source.note|trim }}
+{% endif %}
+{% endfor %}
+
+Evidence gives line numbers in the files of the case folder's `raw/` directory,
+which hold the phone's output exactly as collected.
+{% if r.warnings %}
+appopsy could not read {{ r.warnings }} line(s) of that output; those parts are
+missing from the findings above.
+{% endif %}
+{% if r.appendix %}
+
+## Appendix
+
+{% for a in r.appendix %}
+### {{ a.title }} @@anchor:appendix-{{ a.key }}@@
+
+{{ a.intro }}
+
+{% for item in a.items %}
+{% if item.heading %}
+#### {{ item.heading|md }}
+
+{% endif %}
+{% if item.text %}
+{{ item.text|md }}
+
+{% endif %}
+{% for t in item.tables %}
+{{ md_table(t) }}
+{% endfor %}
+{% if item.evidence %}
+Evidence: {{ item.evidence|map("md")|join("; ") }}
+
+{% endif %}
+{% endfor %}
+{% endfor %}
+{% endif %}

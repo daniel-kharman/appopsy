@@ -1,0 +1,34 @@
+id: unconstrained-background-work
+pack: privacy
+title: Background work that can run at any time
+severity: notable
+severities: [info]  # apps that came with the phone
+function: unconstrained-background-work
+description: >
+  The app has scheduled jobs that require neither charging, nor the phone being
+  idle, nor an unmetered (Wi-Fi) network. They can run whenever the system lets
+  them, on battery and on mobile data. "Any network" is not counted as a
+  constraint. The report lists what each job does require.
+rationale: >
+  Background jobs are how apps prefetch content, upload data and report
+  analytics while you aren't using them. Jobs tied to charging, idle or Wi-Fi run
+  when it costs you least; jobs without those conditions can use battery and
+  mobile data at any time.
+benign_explanations:
+  - Some work is time-sensitive (delivering a message you sent, a backup you asked for) and shouldn't wait for charging.
+  - A job may run rarely; being able to run at any time doesn't mean it runs often.
+  - Jobs still have to wait for Doze and battery-saver windows, so "any time" is an upper bound.
+remediation:
+  - "Settings > Apps > (the app) > App battery usage: choose Restricted, which defers most background jobs."
+  - "Settings > Apps > (the app) > Mobile data: turn off Background data to keep jobs to Wi-Fi."
+source:
+  title: Severity for apps that came with the phone, decided for appopsy
+  checked: 2026-11-01
+  note: >
+    Apps you installed are reported at notable. Apps that came with the phone (a
+    system package with a launcher icon) are reported at info: on a typical phone
+    they schedule dozens of such jobs, most from shared Google libraries (the
+    notifications platform, an app framework, account sync), so listing each at
+    notable would bury the apps you chose. The report shows them as one compact
+    table with full job lists in an appendix. Platform components stay in the
+    system section, as for every rule.

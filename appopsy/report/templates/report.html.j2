@@ -1,0 +1,225 @@
+{#- Autoescaped. Rule text (from the YAML specs in the repo) goes through `rule`,
+    which escapes it and turns `code` spans into <code>. No scripts, no external
+    resources: the file must open without contacting anything. -#}
+{% set d = r.device %}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>appopsy report: {{ d.model or "unknown phone" }}</title>
+<style>
+:root {
+  --bg: #ffffff; --fg: #1d1f23; --muted: #5d6470; --line: #dde1e6; --panel: #f5f7f9;
+  --link: #1f5fbf; --concern: #b3261e; --notable: #9a5b00; --info: #3b6ea8;
+  --critical: #8c0f0f; --high: #b3261e; --medium: #9a5b00; --low: #3b6ea8;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15171a; --fg: #e6e8eb; --muted: #a3aab4; --line: #30353b; --panel: #1d2024;
+    --link: #8ab4f8; --concern: #f28b82; --notable: #f6c26b; --info: #8ab4f8;
+    --critical: #ff6b6b; --high: #f28b82; --medium: #f6c26b; --low: #8ab4f8;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 960px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 1.7rem; margin: 0 0 4px; }
+h2 { font-size: 1.35rem; margin: 40px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+h3 { font-size: 1.15rem; margin: 28px 0 8px; }
+h4 { font-size: 1.02rem; margin: 22px 0 6px; }
+p { margin: 8px 0; }
+a { color: var(--link); }
+code { font: 0.88em ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--panel);
+  padding: 1px 4px; border-radius: 4px; overflow-wrap: anywhere; }
+.muted, .evidence { color: var(--muted); }
+.evidence { font-size: 0.86rem; overflow-wrap: anywhere; }
+.headline { font-size: 1.08rem; background: var(--panel); border-left: 4px solid var(--notable);
+  padding: 12px 16px; border-radius: 6px; margin: 20px 0; }
+.redacted { border: 1px solid var(--line); border-radius: 6px; padding: 10px 14px; margin: 16px 0; }
+.wrap { overflow-x: auto; margin: 10px 0; }
+table { border-collapse: collapse; width: 100%; font-size: 0.92rem; }
+th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.finding { border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; margin: 12px 0; }
+.finding > p:first-child { margin-top: 0; }
+.badge { display: inline-block; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.02em;
+  text-transform: uppercase; padding: 1px 8px; border-radius: 10px; border: 1px solid currentColor; }
+{% for s in ["concern", "notable", "info", "critical", "high", "medium", "low"] %}
+.sev-{{ s }} { color: var(--{{ s }}); }
+{% endfor %}
+ul { padding-left: 22px; }
+li { margin: 4px 0; }
+details { margin: 10px 0; }
+summary { cursor: pointer; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+<h1>appopsy report: {{ d.model or "unknown phone" }}</h1>
+<p class="muted">{{ (d.manufacturer ~ " ") if d.manufacturer else "" }}{{ d.model or "Unknown model" }},
+Android {{ d.android_release or "?" }}{% if d.sdk %} (SDK {{ d.sdk }}){% endif %},
+security patch {{ d.security_patch or "unknown" }}.
+Collected {{ r.collected_label }}, with appopsy {{ r.version }}.</p>
+
+{% if r.redacted is not none %}
+<div class="redacted"><strong>Redacted copy for sharing.</strong>
+{% if r.redacted %}{{ r.redacted }} app(s) that aren't on appopsy's public list are shown as
+"Unlisted app" with an id that changes every time a report is made, and the names of their
+jobs and alarms are hidden. System apps and well-known apps keep their names.
+{% else %}Every app in it is a system app or a well-known app, so all keep their names.
+{% endif %}Times are shown as days before collection. Check it before you share it.</div>
+{% endif %}
+
+<p class="headline">{{ r.headline|join(" ") }}</p>
+
+<p>This report says what the apps on this phone are allowed to do, what Android recorded
+them doing, and what they tried to do and were refused. appopsy only reads: nothing on the
+phone was changed. Each finding says what was seen, why it may matter, what is probably
+harmless about it, and what you can do.</p>
+
+{#- Tables longer than LONG rows fold into <details> (no scripts needed). -#}
+{% set LONG = 10 %}
+{% macro one_table(t) %}
+{% if t.rows|length > LONG %}<details><summary>{{ t.rows|length }} rows</summary>{% endif %}
+<div class="wrap"><table>
+<thead><tr>{% for h in t.headers %}<th>{{ h }}</th>{% endfor %}</tr></thead>
+<tbody>
+{% for row in t.rows %}<tr>{% for c in row %}<td>{{ c }}</td>{% endfor %}</tr>
+{% endfor %}
+</tbody></table></div>
+{% if t.rows|length > LONG %}</details>{% endif %}
+{% endmacro %}
+{% macro tables(v) %}
+{% for t in v.tables %}{{ one_table(t) }}{% endfor %}
+{% endmacro %}
+{% macro evidence(v) %}{% if v.evidence %}<p class="evidence">Evidence: {{ v.evidence|join("; ") }}</p>{% endif %}{% endmacro %}
+
+<h2 id="summary">Summary</h2>
+{% for p in r.packs %}
+{% if not p.rules %}
+<p>{{ p.pack|title }}: no rules are available yet, so nothing was checked.</p>
+{% else %}
+<div class="wrap"><table>
+<thead><tr><th>{{ p.pack|title }} findings</th><th>Count</th></tr></thead>
+<tbody>
+{% for s in p.severities %}
+<tr><td><span class="badge sev-{{ s }}">{{ s }}</span></td><td class="num">{{ p.counts[s] }}</td></tr>
+{% endfor %}
+<tr><td>System components (listed separately)</td><td class="num">{{ p.system|map(attribute="findings")|map("length")|sum }}</td></tr>
+</tbody></table></div>
+{% endif %}
+{% endfor %}
+{% if r.apps %}
+<p>{{ r.apps|length }} apps have findings; <a href="#apps">Per-app detail</a> lists them, most severe first.</p>
+{% else %}
+<p>No findings about the apps on this phone.</p>
+{% endif %}
+
+{% for p in r.packs %}
+<h2 id="{{ p.pack }}">{{ p.pack|title }} findings</h2>
+{% if not p.rules %}
+<p>No {{ p.pack }} rules are available yet.</p>
+{% elif not p.by_severity %}
+<p>No {{ p.pack }} findings about the apps on this phone.</p>
+{% endif %}
+{% for sev, groups in p.by_severity %}
+<h3><span class="badge sev-{{ sev }}">{{ sev }}</span></h3>
+{% for g in groups %}
+<h4 id="{{ g.anchor }}">{{ g.spec.title }}</h4>
+<p>{{ g.spec.description|rule }}</p>
+<p><strong>Why it matters:</strong> {{ g.spec.rationale|rule }}</p>
+{% if g.compact %}
+<p>{{ g.compact_intro }} Details: <a href="#appendix-{{ g.appendix }}">appendix</a>.</p>
+{{ one_table(g.compact) }}
+{% endif %}
+{% for v in ([] if g.compact else g.findings) %}
+<div class="finding">
+<p><strong>{{ v.app }}</strong>{{ v.rest }}</p>
+{% if v.note %}<p class="muted">Note: {{ v.note }}</p>{% endif %}
+{{ tables(v) }}
+{% if v.more %}<p class="muted">Full job list: <a href="#appendix-{{ v.more }}">appendix</a>.</p>{% endif %}
+{{ evidence(v) }}
+</div>
+{% endfor %}
+<p><strong>Probably harmless:</strong></p>
+<ul>{% for b in g.spec.benign_explanations %}<li>{{ b|rule }}</li>{% endfor %}</ul>
+{% endfor %}
+{% endfor %}
+{% endfor %}
+
+<h2 id="apps">Per-app detail</h2>
+{% if r.apps %}
+<ul>
+{% for a in r.apps %}
+<li><strong>{{ a.label }}</strong>, {{ a.origin }}:
+{% for v in a.findings %}<a href="#{{ v.anchor }}">{{ v.finding.title }}</a>
+<span class="badge sev-{{ v.finding.severity }}">{{ v.finding.severity }}</span>{% if not loop.last %}; {% endif %}{% endfor %}</li>
+{% endfor %}
+</ul>
+{% else %}
+<p>No findings about the apps on this phone.</p>
+{% endif %}
+
+<h2 id="actions">What you can do</h2>
+{% for g in r.remediation %}
+<h3>{{ g.spec.title }}</h3>
+{% if g.actions %}
+<ul>{% for action in g.actions %}<li>{{ action }}</li>{% endfor %}</ul>
+<p class="muted">In general:</p>
+{% endif %}
+<ul>{% for step in g.spec.remediation %}<li>{{ step|rule }}</li>{% endfor %}</ul>
+{% else %}
+<p>Nothing to act on.</p>
+{% endfor %}
+
+<h2 id="system">System components</h2>
+<p>These packages are part of Android itself and have no app icon. Findings about them are
+listed for completeness at the lowest level of their scale and are not counted with the
+apps above. They can't be uninstalled, and most can't be restricted. Apps that came with
+the phone and have an icon (such as Maps) are listed with your other apps above.</p>
+{% for p in r.packs %}
+{% if p.system_table %}
+{{ one_table(p.system_table) }}
+{% if p.system_notes %}<ul>{% for component, note in p.system_notes %}<li><strong>{{ component }}</strong>: {{ note }}</li>{% endfor %}</ul>{% endif %}
+<p class="muted">Each finding in full: <a href="#appendix-system">appendix</a>.</p>
+{% endif %}
+{% endfor %}
+
+<h2 id="method">How this report was made</h2>
+<ul>
+{% for spec in r.rules_run %}
+<li><strong>{{ spec.title }}</strong> (<code>{{ spec.id }}</code>, {{ spec.pack }}, {{ spec.severity }}).
+{% for name, t in spec.thresholds.items() %}
+<br>Threshold <code>{{ name }}</code>: {{ "%g"|format(t.value) }} {{ t.unit }}. Source:
+{% if t.source.url %}<a href="{{ t.source.url }}" rel="noreferrer">{{ t.source.title }}</a>{% else %}{{ t.source.title }}{% endif %},
+checked {{ t.source.checked }}, {{ "verified" if t.source.verified else "not verified" }}.{% if t.source.note %} {{ t.source.note|trim|rule }}{% endif %}
+{% endfor %}
+{% if spec.source %}<br>No threshold: {{ spec.source.note|trim|rule }}{% endif %}
+</li>
+{% endfor %}
+</ul>
+<p class="muted">Evidence gives line numbers in the files of the case folder's
+<code>raw/</code> directory, which hold the phone's output exactly as collected.
+{% if r.warnings %}appopsy could not read {{ r.warnings }} line(s) of that output; those parts
+are missing from the findings above.{% endif %}</p>
+{% if r.appendix %}
+<h2 id="appendix">Appendix</h2>
+{% for a in r.appendix %}
+<details id="appendix-{{ a.key }}"><summary><strong>{{ a.title }}</strong></summary>
+<p>{{ a.intro }}</p>
+{% for item in a.items %}
+{% if item.heading %}<h4>{{ item.heading }}</h4>{% endif %}
+{% if item.text %}<p>{{ item.text }}</p>{% endif %}
+{% for t in item.tables %}{{ one_table(t) }}{% endfor %}
+{% if item.evidence %}<p class="evidence">Evidence: {{ item.evidence|join("; ") }}</p>{% endif %}
+{% endfor %}
+</details>
+{% endfor %}
+{% endif %}
+</main>
+</body>
+</html>

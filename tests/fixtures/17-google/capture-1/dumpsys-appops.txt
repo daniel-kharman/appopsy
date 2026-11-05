@@ -1,0 +1,1026 @@
+AppOps Service state:
+  Settings:
+    top_state_settle_time=+5s0ms
+    fg_service_state_settle_time=+5s0ms
+    bg_state_settle_time=+1s0ms
+
+
+  AppOps policy location tags:
+    #0: 10309=com.google.android.gms[awareness_provider, activity_recognition_provider, network_location_provider, gnss_location_provider, network_location_calibration, current_semantic_location, fused_location_provider, wearable_flp_shim, geofencer_provider]
+    #1: 1000=android[LocationService, GnssService]
+
+  AppOps policy activity recognition tags:
+    #0: 10309=com.google.android.gms[awareness_provider, activity_recognition_provider, current_semantic_location, fused_location_provider, geofencer_provider]
+
+
+AppOps Restrictions
+  Audio Restrictions:
+   Zen Audio Restriction Mode: 
+   Camera Audio Restriction Mode: None
+
+Historical restrictions
+    12-31 10:28:34:352 op: PLAY_AUDIO, usage: USAGE_NOTIFICATION: Restriction[mode: ignore, exceptions: [com.google.android.soundpicker, com.android.server.telecom, com.android.systemui, android, com.google.android.dialer]
+    12-31 10:28:34:352 op: PLAY_AUDIO, usage: USAGE_NOTIFICATION_RINGTONE: Restriction[mode: ignore, exceptions: [com.google.android.soundpicker, com.android.server.telecom, com.android.systemui, android, com.google.android.dialer]
+    12-31 10:28:34:352 op: PLAY_AUDIO, usage: USAGE_NOTIFICATION_COMMUNICATION_REQUEST: Restriction[mode: ignore, exceptions: [com.google.android.soundpicker, com.android.server.telecom, com.android.systemui, android, com.google.android.dialer]
+    12-31 10:28:34:352 op: PLAY_AUDIO, usage: USAGE_NOTIFICATION_COMMUNICATION_INSTANT: Restriction[mode: ignore, exceptions: [com.google.android.soundpicker, com.android.server.telecom, com.android.systemui, android, com.google.android.dialer]
+    12-31 10:28:34:352 op: PLAY_AUDIO, usage: USAGE_NOTIFICATION_COMMUNICATION_DELAYED: Restriction[mode: ignore, exceptions: [com.google.android.soundpicker, com.android.server.telecom, com.android.systemui, android, com.google.android.dialer]
+    12-31 10:28:34:352 op: PLAY_AUDIO, usage: USAGE_NOTIFICATION_EVENT: Restriction[mode: ignore, exceptions: [com.google.android.soundpicker, com.android.server.telecom, com.android.systemui, android, com.google.android.dialer]
+    12-31 10:28:34:352 op: PLAY_AUDIO, usage: USAGE_ASSISTANCE_SONIFICATION: Restriction[mode: ignore, exceptions: [com.google.android.soundpicker, com.android.server.telecom, com.android.systemui, android, com.google.android.dialer]
+    12-31 10:28:34:352 op: VIBRATE, usage: USAGE_NOTIFICATION: Restriction[mode: ignore, exceptions: [com.google.android.soundpicker, com.android.server.telecom, com.android.systemui, android, com.google.android.dialer]
+    12-31 10:28:34:352 op: VIBRATE, usage: USAGE_NOTIFICATION_RINGTONE: Restriction[mode: ignore, exceptions: [com.google.android.soundpicker, com.android.server.telecom, com.android.systemui, android, com.google.android.dialer]
+    12-31 10:28:34:352 op: VIBRATE, usage: USAGE_NOTIFICATION_COMMUNICATION_REQUEST: Restriction[mode: ignore, exceptions: [com.google.android.soundpicker, com.android.server.telecom, com.android.systemui, android, com.google.android.dialer]
+    12-31 10:28:34:352 op: VIBRATE, usage: USAGE_NOTIFICATION_COMMUNICATION_INSTANT: Restriction[mode: ignore, exceptions: [com.google.android.soundpicker, com.android.server.telecom, com.android.systemui, android, com.google.android.dialer]
+    12-31 10:28:34:352 op: VIBRATE, usage: USAGE_NOTIFICATION_COMMUNICATION_DELAYED: Restriction[mode: ignore, exceptions: [com.google.android.soundpicker, com.android.server.telecom, com.android.systemui, android, com.google.android.dialer]
+    12-31 10:28:34:352 op: VIBRATE, usage: USAGE_NOTIFICATION_EVENT: Restriction[mode: ignore, exceptions: [com.google.android.soundpicker, com.android.server.telecom, com.android.systemui, android, com.google.android.dialer]
+    12-31 16:13:18:341 op: PLAY_AUDIO, usage: USAGE_NOTIFICATION: restriction removed
+    12-31 16:13:18:341 op: PLAY_AUDIO, usage: USAGE_NOTIFICATION_RINGTONE: restriction removed
+    12-31 16:13:18:341 op: PLAY_AUDIO, usage: USAGE_NOTIFICATION_COMMUNICATION_REQUEST: restriction removed
+    12-31 16:13:18:341 op: PLAY_AUDIO, usage: USAGE_NOTIFICATION_COMMUNICATION_INSTANT: restriction removed
+    12-31 16:13:18:341 op: PLAY_AUDIO, usage: USAGE_NOTIFICATION_COMMUNICATION_DELAYED: restriction removed
+    12-31 16:13:18:341 op: PLAY_AUDIO, usage: USAGE_NOTIFICATION_EVENT: restriction removed
+    12-31 16:13:18:341 op: PLAY_AUDIO, usage: USAGE_ASSISTANCE_SONIFICATION: restriction removed
+    12-31 16:13:18:341 op: VIBRATE, usage: USAGE_NOTIFICATION: restriction removed
+    12-31 16:13:18:341 op: VIBRATE, usage: USAGE_NOTIFICATION_RINGTONE: restriction removed
+    12-31 16:13:18:341 op: VIBRATE, usage: USAGE_NOTIFICATION_COMMUNICATION_REQUEST: restriction removed
+    12-31 16:13:18:341 op: VIBRATE, usage: USAGE_NOTIFICATION_COMMUNICATION_INSTANT: restriction removed
+    12-31 16:13:18:341 op: VIBRATE, usage: USAGE_NOTIFICATION_COMMUNICATION_DELAYED: restriction removed
+    12-31 16:13:18:341 op: VIBRATE, usage: USAGE_NOTIFICATION_EVENT: restriction removed
+
+  User restrictions for token android.os.Binder@792a4c:
+      Restricted ops:
+        user: 0 restricted ops: [PHONE_CALL_MICROPHONE, PHONE_CALL_CAMERA]
+    Excluded packages:
+      user: 0 packages: 
+        com.android.server.telecom[*]
+
+AppOps Uid Op State
+  Uid u0a168:
+    state=cch
+    capability=---------
+    appWidgetVisible=false
+      WRITE_CALL_LOG: mode=ignore
+      READ_CALENDAR: mode=ignore
+      WRITE_CALENDAR: mode=ignore
+      CALL_PHONE: mode=ignore
+      RECEIVE_SMS: mode=ignore
+      RECEIVE_MMS: mode=ignore
+      RECEIVE_WAP_PUSH: mode=ignore
+      SEND_SMS: mode=ignore
+      CAMERA: mode=foreground
+      RECORD_AUDIO: mode=foreground
+      ADD_VOICEMAIL: mode=ignore
+      USE_SIP: mode=ignore
+      PROCESS_OUTGOING_CALLS: mode=ignore
+      BODY_SENSORS: mode=ignore
+      READ_CELL_BROADCASTS: mode=ignore
+      READ_EXTERNAL_STORAGE: mode=ignore
+      WRITE_EXTERNAL_STORAGE: mode=ignore
+      GET_ACCOUNTS: mode=ignore
+      READ_PHONE_NUMBERS: mode=ignore
+      ANSWER_PHONE_CALLS: mode=ignore
+      ACCEPT_HANDOVER: mode=ignore
+      ACTIVITY_RECOGNITION: mode=ignore
+      ACCESS_MEDIA_LOCATION: mode=ignore
+      UWB_RANGING: mode=ignore
+      BLUETOOTH_ADVERTISE: mode=ignore
+      NEARBY_WIFI_DEVICES: mode=ignore
+      RECEIVE_SENSITIVE_NOTIFICATIONS: mode=allow
+      READ_HEART_RATE: mode=ignore
+      READ_SKIN_TEMPERATURE: mode=ignore
+      RANGING: mode=ignore
+      READ_OXYGEN_SATURATION: mode=ignore
+      SYSTEM_APPLICATION_OVERLAY: mode=allow
+      ACCESS_LOCAL_NETWORK: mode=ignore
+      READ_BLOOD_PRESSURE: mode=ignore
+      READ_HEART_RATE_VARIABILITY: mode=ignore
+      READ_RESPIRATORY_RATE: mode=ignore
+      READ_VO2_MAX: mode=ignore
+    Package com.google.android.as:
+      COARSE_LOCATION (allow): 
+      FINE_LOCATION (allow): 
+        null=[
+          Access: [top-s] 2029-12-20 01:47:54.271 (-11d22h12m5s550ms)
+          Access: [fg-s] 2029-12-31 09:16:10.635 (-14h43m49s186ms)
+        ]
+      READ_CONTACTS (allow): 
+        null=[
+          Access: [top-s] 2029-12-16 10:03:26.278 (-15d13h56m33s543ms)
+          Access: [fgsvc-s] 2029-12-14 16:03:54.807 (-17d7h56m5s14ms)
+          Access: [fg-s] 2029-12-31 10:09:59.422 (-13h50m0s399ms)
+        ]
+      READ_CALL_LOG (allow): 
+        null=[
+          Access: [fgsvc-s] 2029-12-14 16:01:36.632 (-17d7h58m23s189ms)
+          Access: [fg-s] 2029-12-31 10:10:20.507 (-13h49m39s314ms)
+        ]
+      READ_SMS (allow): 
+        null=[
+          Access: [fg-s] 2029-12-31 10:10:20.735 (-13h49m39s86ms)
+        ]
+      WRITE_SMS (ignore): 
+        null=[
+          Reject: [fg-s]2029-12-31 07:30:32.800 (-16h29m27s21ms)
+        ]
+      RECORD_AUDIO (allow): 
+        null=[
+          Access: [fg-s] 2029-12-30 15:21:34.024 (-1d8h38m25s797ms)
+        ]
+      READ_CLIPBOARD (allow): 
+        null=[
+          Access: [top-s] 2029-12-30 20:00:34.172 (-1d3h59m25s649ms)
+          Access: [fg-s] 2029-12-31 09:28:22.738 (-14h31m37s83ms)
+        ]
+      WRITE_CLIPBOARD (allow): 
+        null=[
+          Access: [top-s] 2029-12-30 20:00:34.152 (-1d3h59m25s669ms)
+        ]
+      WAKE_LOCK (allow): 
+        null=[
+          Access: [fgsvc-s] 2029-12-14 16:02:10.292 (-17d7h57m49s529ms) duration=+9s2ms
+          Access: [fg-s] 2029-12-31 09:42:50.228 (-14h17m9s593ms) duration=+1s5ms
+        ]
+      MONITOR_LOCATION (allow / switch COARSE_LOCATION=allow): 
+        null=[
+          Access: [top-s] 2029-12-31 08:17:18.862 (-15h42m40s959ms) duration=+143ms
+          Access: [fgsvc-s] 2029-12-30 07:31:20.812 (-1d16h28m39s9ms) duration=+11ms
+          Access: [fg-s] 2029-12-31 08:17:19.005 (-15h42m40s816ms) duration=+1h53m8s52ms
+          Access: [cch-s] 2029-12-31 10:10:27.057 (-13h49m32s764ms)
+        ]
+      GET_USAGE_STATS (default): 
+        null=[
+          Reject: [top-s]2029-12-16 10:03:26.255 (-15d13h56m33s566ms)
+          Reject: [fgsvc-s]2029-12-14 15:44:46.802 (-17d8h15m13s19ms)
+          Reject: [fg-s]2029-12-31 10:09:59.226 (-13h50m0s595ms)
+          Reject: [bg-s]2029-12-14 16:01:36.314 (-17d7h58m23s507ms)
+          Reject: [cch-s]2029-12-14 16:01:36.311 (-17d7h58m23s510ms)
+        ]
+      READ_PHONE_STATE (allow): 
+        null=[
+          Access: [top-s] 2029-12-19 06:44:27.550 (-12d17h15m32s271ms)
+          Access: [fg-s] 2029-12-31 09:32:42.303 (-14h27m17s518ms)
+        ]
+      START_FOREGROUND (allow): 
+        null=[
+          Access: [top-s] 2029-12-31 08:17:18.862 (-15h42m40s959ms) duration=+143ms
+          Access: [fgsvc-s] 2029-12-30 22:38:54.820 (-1d1h21m5s1ms) duration=+34ms
+          Access: [fg-s] 2029-12-31 08:17:19.005 (-15h42m40s816ms) duration=+1h53m8s53ms
+          Access: [bg-s] 2029-12-14 16:01:36.311 (-17d7h58m23s510ms) duration=+4ms
+          Access: [cch-s] 2029-12-31 10:10:27.057 (-13h49m32s764ms)
+        ]
+      READ_MEDIA_AUDIO (allow): 
+      READ_MEDIA_VIDEO (allow): 
+        null=[
+          Access: [fg-s] 2029-12-31 10:09:58.842 (-13h50m0s979ms)
+        ]
+      WRITE_MEDIA_VIDEO (deny): 
+        null=[
+          Reject: [fg-s]2029-12-24 10:06:46.549 (-7d13h53m13s272ms)
+        ]
+      READ_MEDIA_IMAGES (allow): 
+        null=[
+          Access: [fg-s] 2029-12-31 10:09:58.622 (-13h50m1s199ms)
+        ]
+      WRITE_MEDIA_IMAGES (deny): 
+        null=[
+          Reject: [fg-s]2029-12-24 10:06:46.548 (-7d13h53m13s273ms)
+        ]
+      READ_DEVICE_IDENTIFIERS (deny): 
+        null=[
+          Reject: [fg-s]2029-12-31 07:30:32.800 (-16h29m27s21ms)
+        ]
+      MANAGE_EXTERNAL_STORAGE (default): 
+        null=[
+          Reject: [fg-s]2029-12-31 10:09:58.622 (-13h50m1s199ms)
+        ]
+      RECORD_AUDIO_HOTWORD (allow): 
+        null=[
+          Access: [fg-s] 2029-12-31 09:32:42.322 (-14h27m17s499ms) duration=+117ms
+        ]
+      MANAGE_ONGOING_CALLS (default): 
+        null=[
+          Reject: [fg-s]2029-12-30 18:22:24.424 (-1d5h37m35s397ms)
+        ]
+      USE_ICC_AUTH_WITH_DEVICE_IDENTIFIER (default): 
+        null=[
+          Reject: [fg-s]2029-12-31 07:30:33.418 (-16h29m26s403ms)
+        ]
+      BLUETOOTH_CONNECT (allow): 
+        null=[
+          Access: [fg-s] 2029-12-31 09:11:10.324 (-14h48m49s497ms)
+        ]
+      RECEIVE_SOUNDTRIGGER_AUDIO (allow): 
+        null=[
+          Access: [fg-s] 2029-12-31 09:32:42.278 (-14h27m17s543ms)
+        ]
+      RECEIVE_SENSITIVE_NOTIFICATIONS (ignore): 
+        null=[
+          Access: [fg-s] 2029-12-30 22:38:51.182 (-1d1h21m8s639ms)
+          Access: [cch-s] 2029-12-31 10:10:27.723 (-13h49m32s98ms)
+        ]
+      READ_RESTRICTED_MESSAGES (ignore): 
+        null=[
+          Reject: [fg-s]2029-12-31 10:10:21.533 (-13h49m38s288ms)
+        ]
+  Uid u0a179:
+    state=cch
+    capability=---------
+    appWidgetVisible=false
+      COARSE_LOCATION: mode=ignore
+      FINE_LOCATION: mode=ignore
+      READ_CALENDAR: mode=ignore
+      WRITE_CALENDAR: mode=ignore
+      READ_SMS: mode=ignore
+      RECEIVE_MMS: mode=ignore
+      RECEIVE_WAP_PUSH: mode=ignore
+      CAMERA: mode=foreground
+      RECORD_AUDIO: mode=foreground
+      USE_SIP: mode=ignore
+      PROCESS_OUTGOING_CALLS: mode=ignore
+      BODY_SENSORS: mode=ignore
+      READ_CELL_BROADCASTS: mode=ignore
+      READ_EXTERNAL_STORAGE: mode=ignore
+      WRITE_EXTERNAL_STORAGE: mode=ignore
+      READ_PHONE_NUMBERS: mode=ignore
+      ANSWER_PHONE_CALLS: mode=ignore
+      ACCEPT_HANDOVER: mode=ignore
+      BLUETOOTH_SCAN: mode=ignore
+      ACTIVITY_RECOGNITION: mode=ignore
+      READ_MEDIA_AUDIO: mode=ignore
+      READ_MEDIA_VIDEO: mode=ignore
+      READ_MEDIA_IMAGES: mode=ignore
+      LEGACY_STORAGE: mode=ignore
+      ACCESS_MEDIA_LOCATION: mode=ignore
+      UWB_RANGING: mode=ignore
+      BLUETOOTH_ADVERTISE: mode=ignore
+      NEARBY_WIFI_DEVICES: mode=ignore
+      READ_MEDIA_VISUAL_USER_SELECTED: mode=ignore
+      RECEIVE_SENSITIVE_NOTIFICATIONS: mode=allow
+      READ_HEART_RATE: mode=ignore
+      READ_SKIN_TEMPERATURE: mode=ignore
+      RANGING: mode=ignore
+      READ_OXYGEN_SATURATION: mode=ignore
+      ACCESS_LOCAL_NETWORK: mode=ignore
+      READ_BLOOD_PRESSURE: mode=ignore
+      READ_HEART_RATE_VARIABILITY: mode=ignore
+      READ_RESPIRATORY_RATE: mode=ignore
+      READ_VO2_MAX: mode=ignore
+      READ_RESTRICTED_MESSAGES: mode=allow
+    Package com.google.android.dialer:
+      READ_CONTACTS (allow): 
+        null=[
+          Access: [top-s] 2029-12-30 18:33:00.406 (-1d5h26m59s415ms)
+          Access: [fgsvc-s] 2029-12-30 18:22:24.651 (-1d5h37m35s170ms)
+          Access: [fg-s] 2029-12-30 18:22:24.493 (-1d5h37m35s328ms)
+          Access: [fg-up] 2029-12-28 18:16:48.343 (-3d5h43m11s478ms)
+          Access: [bg-s] 2029-12-31 19:27:25.779 (-4h32m34s42ms)
+          Access: [cch-s] 2029-12-29 18:00:38.282 (-2d5h59m21s539ms)
+        ]
+      READ_CALL_LOG (allow): 
+        null=[
+          Access: [top-s] 2029-12-30 18:33:00.471 (-1d5h26m59s350ms)
+          Access: [fgsvc-s] 2029-12-29 16:23:04.420 (-2d7h36m55s401ms)
+          Access: [fg-s] 2029-12-30 18:22:24.531 (-1d5h37m35s290ms)
+          Access: [bg-s] 2029-12-31 19:27:25.996 (-4h32m33s825ms)
+          Access: [cch-s] 2029-12-29 18:00:38.160 (-2d5h59m21s661ms)
+        ]
+      WRITE_CALL_LOG (allow): 
+        null=[
+          Access: [top-s] 2029-12-30 18:33:02.955 (-1d5h26m56s866ms)
+          Access: [fgsvc-s] 2029-12-24 21:43:41.610 (-7d2h16m18s211ms)
+          Access: [bg-s] 2029-12-30 22:38:55.455 (-1d1h21m4s366ms)
+        ]
+      SYSTEM_ALERT_WINDOW (allow): 
+        null=[
+          Access: [fgsvc-s] 2029-12-30 18:22:24.816 (-1d5h37m35s5ms)
+          Access: [fg-s] 2029-12-23 21:16:04.012 (-8d2h43m55s809ms)
+          Access: [bg-s] 2029-12-31 23:35:52.884 (-24m6s937ms)
+          Access: [cch-s] 2029-12-30 18:32:59.678 (-1d5h27m0s143ms)
+        ]
+      WRITE_CLIPBOARD (allow): 
+        null=[
+          Access: [top-s] 2029-12-28 20:56:50.410 (-3d3h3m9s411ms)
+        ]
+      WAKE_LOCK (allow): 
+        null=[
+          Access: [top-s] 2029-12-21 06:11:59.314 (-10d17h48m0s507ms) duration=+151ms
+          Access: [fgsvc-s] 2029-12-30 18:22:24.610 (-1d5h37m35s211ms) duration=+51ms
+          Access: [fg-s] 2029-12-31 20:02:16.573 (-3h57m43s248ms) duration=+419ms
+          Access: [bg-s] 2029-12-31 22:05:08.938 (-1h54m50s883ms) duration=+29ms
+          Access: [cch-s] 2029-12-26 03:46:24.158 (-5d20h13m35s663ms) duration=+797ms
+        ]
+      READ_PHONE_STATE (allow): 
+        null=[
+          Access: [top-s] 2029-12-30 18:33:00.286 (-1d5h26m59s535ms)
+          Access: [fgsvc-s] 2029-12-24 21:43:41.505 (-7d2h16m18s316ms)
+          Access: [bg-s] 2029-12-31 23:35:52.884 (-24m6s937ms)
+          Access: [cch-s] 2029-12-31 23:35:52.863 (-24m6s958ms)
+        ]
+      ADD_VOICEMAIL (allow): 
+        null=[
+          Access: [top-s] 2029-12-30 18:33:00.142 (-1d5h26m59s679ms)
+          Access: [bg-s] 2029-12-30 22:38:55.001 (-1d1h21m4s820ms)
+        ]
+      GET_ACCOUNTS (allow): 
+        null=[
+          Access: [top-tpd] 2029-12-30 18:33:03.535 (-1d5h26m56s286ms) proxy[uid=10309, pkg=com.google.android.gms, attributionTag=com.google.android.gms.usagereporting]
+          Access: [fgsvc-tpd] 2029-12-30 18:22:24.800 (-1d5h37m35s21ms) proxy[uid=10309, pkg=com.google.android.gms, attributionTag=com.google.android.gms.usagereporting]
+          Access: [fg-tpd] 2029-12-31 20:02:16.759 (-3h57m43s62ms) proxy[uid=10309, pkg=com.google.android.gms, attributionTag=com.google.android.gms.usagereporting]
+          Access: [bg-tpd] 2029-12-31 22:54:10.055 (-1h5m49s766ms) proxy[uid=10309, pkg=com.google.android.gms, attributionTag=com.google.android.gms.usagereporting]
+          Access: [cch-tpd] 2029-12-31 22:00:10.177 (-1h59m49s644ms) proxy[uid=10309, pkg=com.google.android.gms, attributionTag=com.google.android.gms.usagereporting]
+        ]
+      START_FOREGROUND (allow): 
+        null=[
+          Access: [top-s] 2029-12-30 18:22:24.899 (-1d5h37m34s922ms) duration=+14s390ms
+          Access: [fgsvc-s] 2029-12-30 18:22:24.610 (-1d5h37m35s211ms) duration=+217ms
+          Access: [fg-s] 2029-12-30 18:22:24.600 (-1d5h37m35s221ms) duration=+11ms
+        ]
+      USE_ICC_AUTH_WITH_DEVICE_IDENTIFIER (default): 
+        null=[
+          Reject: [top-s]2029-12-30 18:33:00.775 (-1d5h26m59s46ms)
+          Reject: [fgsvc-s]2029-12-29 16:23:04.648 (-2d7h36m55s173ms)
+          Reject: [fg-s]2029-12-30 18:22:24.519 (-1d5h37m35s302ms)
+          Reject: [bg-s]2029-12-31 23:35:53.794 (-24m6s27ms)
+          Reject: [cch-s]2029-12-31 05:18:36.578 (-18h41m23s243ms)
+        ]
+      BLUETOOTH_CONNECT (allow): 
+        null=[
+          Access: [fg-s] 2029-12-30 18:22:24.492 (-1d5h37m35s329ms)
+        ]
+      RECORD_INCOMING_PHONE_AUDIO (allow): 
+        null=[
+          Access: [top-s] 2029-12-15 10:37:05.577 (-16d13h22m54s244ms) duration=+4s474ms
+          Access: [fgsvc-s] 2029-12-15 00:31:43.199 (-16d23h28m16s622ms) duration=+5s624ms
+          Access: [fg-s] 2029-12-15 10:37:10.051 (-16d13h22m49s770ms) duration=+243ms
+        ]
+      USE_FULL_SCREEN_INTENT (default): 
+        null=[
+          Reject: [top-s]2029-12-16 22:43:27.004 (-15d1h16m32s817ms)
+          Reject: [fgsvc-s]2029-12-30 18:22:24.609 (-1d5h37m35s212ms)
+        ]
+      CONTROL_AUDIO (foreground): 
+        null=[
+          Access: [top-s] 2029-12-15 10:37:05.816 (-16d13h22m54s5ms) duration=+3s937ms
+          Access: [fgsvc-s] 2029-12-15 00:31:43.978 (-16d23h28m15s843ms) duration=+4s522ms
+        ]
+      CONTROL_AUDIO_PARTIAL (foreground): 
+        null=[
+          Access: [top-s] 2029-12-15 10:37:05.815 (-16d13h22m54s6ms) duration=+3s937ms
+          Access: [fgsvc-s] 2029-12-15 00:31:43.978 (-16d23h28m15s843ms) duration=+4s523ms
+        ]
+      POST_PROMOTED_NOTIFICATIONS (default): 
+        null=[
+          Reject: [top-s]2029-12-30 18:22:24.902 (-1d5h37m34s919ms)
+          Reject: [fgsvc-s]2029-12-30 18:22:24.610 (-1d5h37m35s211ms)
+        ]
+  Uid u0a231:
+    state=cch
+    capability=---------
+    appWidgetVisible=false
+      WRITE_CONTACTS: mode=ignore
+      READ_CALL_LOG: mode=ignore
+      WRITE_CALL_LOG: mode=ignore
+      READ_CALENDAR: mode=ignore
+      WRITE_CALENDAR: mode=ignore
+      CALL_PHONE: mode=ignore
+      READ_SMS: mode=ignore
+      RECEIVE_SMS: mode=ignore
+      RECEIVE_MMS: mode=ignore
+      RECEIVE_WAP_PUSH: mode=ignore
+      SEND_SMS: mode=ignore
+      CAMERA: mode=foreground
+      RECORD_AUDIO: mode=foreground
+      READ_PHONE_STATE: mode=ignore
+      ADD_VOICEMAIL: mode=ignore
+      USE_SIP: mode=ignore
+      PROCESS_OUTGOING_CALLS: mode=ignore
+      BODY_SENSORS: mode=ignore
+      READ_CELL_BROADCASTS: mode=ignore
+      READ_EXTERNAL_STORAGE: mode=ignore
+      WRITE_EXTERNAL_STORAGE: mode=ignore
+      GET_ACCOUNTS: mode=ignore
+      READ_PHONE_NUMBERS: mode=ignore
+      ANSWER_PHONE_CALLS: mode=ignore
+      ACCEPT_HANDOVER: mode=ignore
+      ACTIVITY_RECOGNITION: mode=ignore
+      READ_MEDIA_AUDIO: mode=ignore
+      LEGACY_STORAGE: mode=ignore
+      BLUETOOTH_CONNECT: mode=ignore
+      UWB_RANGING: mode=ignore
+      BLUETOOTH_ADVERTISE: mode=ignore
+      NEARBY_WIFI_DEVICES: mode=ignore
+      READ_HEART_RATE: mode=ignore
+      READ_SKIN_TEMPERATURE: mode=ignore
+      RANGING: mode=ignore
+      READ_OXYGEN_SATURATION: mode=ignore
+      ACCESS_LOCAL_NETWORK: mode=ignore
+      READ_BLOOD_PRESSURE: mode=ignore
+      READ_HEART_RATE_VARIABILITY: mode=ignore
+      READ_RESPIRATORY_RATE: mode=ignore
+      READ_VO2_MAX: mode=ignore
+    Package com.google.android.apps.maps:
+      COARSE_LOCATION (allow): 
+      FINE_LOCATION (allow): 
+        null=[
+          Access: [top-s] 2029-12-31 23:11:34.024 (-48m25s797ms)
+          Access: [fgsvc-s] 2029-12-31 19:49:52.616 (-4h10m7s205ms)
+          Access: [fg-s] 2029-12-30 09:17:02.897 (-1d14h42m56s924ms)
+          Reject: [fg-s]2029-12-22 00:08:01.646 (-9d23h51m58s175ms)
+          Access: [bg-s] 2029-12-31 23:35:52.028 (-24m7s793ms)
+          Reject: [bg-s]2029-12-22 17:03:40.559 (-9d6h56m19s262ms)
+          Access: [cch-s] 2029-12-31 22:48:12.214 (-1h11m47s607ms)
+          Reject: [cch-s]2029-12-22 18:19:01.316 (-9d5h40m58s505ms)
+        ]
+      GPS (allow / switch COARSE_LOCATION=allow): 
+        null=[
+          Access: [top-s] 2029-12-31 23:11:31.364 (-48m28s457ms) duration=+3s323ms
+          Access: [fgsvc-s] 2029-12-31 19:43:59.075 (-4h16m0s746ms) duration=+5m53s664ms
+          Access: [fg-s] 2029-12-30 01:56:34.272 (-1d22h3m25s549ms) duration=+1s512ms
+          Access: [bg-s] 2029-12-31 22:47:41.106 (-1h12m18s715ms) duration=+651ms
+          Access: [cch-s] 2029-12-31 22:47:40.745 (-1h12m19s76ms) duration=+361ms
+        ]
+      READ_CONTACTS (allow): 
+        null=[
+          Access: [top-s] 2029-12-29 20:19:07.849 (-2d3h40m51s972ms)
+        ]
+      WIFI_SCAN (allow / switch COARSE_LOCATION=allow): 
+        null=[
+          Access: [top-s] 2029-12-20 21:33:51.191 (-11d2h26m8s630ms)
+        ]
+      SYSTEM_ALERT_WINDOW (default): 
+        null=[
+          Reject: [top-s]2029-12-31 22:43:42.584 (-1h16m17s237ms)
+          Reject: [fgsvc-s]2029-12-30 20:58:20.609 (-1d3h1m39s212ms)
+          Reject: [bg-s]2029-12-31 23:35:52.082 (-24m7s739ms)
+          Reject: [cch-s]2029-12-31 22:47:41.046 (-1h12m18s775ms)
+        ]
+      CAMERA (allow): 
+        null=[
+          Access: [top-s] 2029-12-20 21:33:56.100 (-11d2h26m3s721ms) duration=+2s890ms
+        ]
+      RECORD_AUDIO (allow): 
+        null=[
+          Access: [top-tpd] 2029-12-22 03:37:01.173 (-9d20h22m58s648ms) duration=+1s588ms proxy[uid=10228, pkg=com.google.android.tts, attributionTag=null]
+        ]
+      READ_CLIPBOARD (allow): 
+        null=[
+          Access: [top-s] 2029-12-30 00:55:50.241 (-1d23h4m9s580ms)
+        ]
+      WRITE_CLIPBOARD (allow): 
+        null=[
+          Access: [top-s] 2029-12-30 00:55:50.248 (-1d23h4m9s573ms)
+        ]
+      TAKE_AUDIO_FOCUS (foreground): 
+        null=[
+          Access: [top-s] 2029-12-31 00:02:43.995 (-23h57m15s826ms)
+          Access: [fgsvc-s] 2029-12-31 00:03:36.034 (-23h56m23s787ms)
+          Access: [fg-s] 2029-12-30 01:56:34.910 (-1d22h3m24s911ms)
+        ]
+      WAKE_LOCK (allow): 
+        null=[
+          Access: [top-s] 2029-12-31 19:14:18.756 (-4h45m41s65ms) duration=+1s476ms
+          Access: [bg-s] 2029-12-31 10:19:39.014 (-13h40m20s807ms) duration=+835ms
+        ]
+      MONITOR_LOCATION (allow / switch COARSE_LOCATION=allow): 
+        null=[
+          Access: [top-s] 2029-12-31 23:11:31.490 (-48m28s331ms) duration=+3s200ms
+          Access: [fgsvc-s] 2029-12-31 19:43:59.075 (-4h16m0s746ms) duration=+5m58s598ms
+          Access: [fg-s] 2029-12-31 00:33:29.319 (-23h26m30s502ms) duration=+2s683ms
+          Access: [bg-s] 2029-12-31 22:47:41.337 (-1h12m18s484ms) duration=+427ms
+          Access: [cch-s] 2029-12-31 23:06:41.486 (-53m18s335ms)
+        ]
+      MONITOR_HIGH_POWER_LOCATION (allow / switch COARSE_LOCATION=allow): 
+        null=[
+          Access: [top-s] 2029-12-31 23:11:31.363 (-48m28s458ms) duration=+3s279ms
+          Access: [fgsvc-s] 2029-12-31 19:43:59.075 (-4h16m0s746ms) duration=+5m53s558ms
+          Access: [fg-s] 2029-12-30 01:56:34.272 (-1d22h3m25s549ms) duration=+1s512ms
+        ]
+      START_FOREGROUND (allow): 
+        null=[
+          Access: [top-s] 2029-12-31 19:43:46.206 (-4h16m13s615ms) duration=+12s870ms
+          Access: [fgsvc-s] 2029-12-31 19:43:59.075 (-4h16m0s746ms) duration=+5m53s509ms
+          Access: [fg-s] 2029-12-30 01:56:34.272 (-1d22h3m25s549ms) duration=+1s512ms
+        ]
+      BLUETOOTH_SCAN (allow): 
+        null=[
+          Access: [top-s] 2029-12-21 05:31:39.398 (-10d18h28m20s423ms)
+        ]
+      WRITE_MEDIA_AUDIO (deny): 
+        null=[
+          Reject: [top-s]2029-12-31 20:32:49.592 (-3h27m10s229ms)
+          Reject: [fgsvc-s]2029-12-23 19:27:11.387 (-8d4h32m48s434ms)
+          Reject: [bg-s]2029-12-30 23:31:48.150 (-1d0h28m11s671ms)
+        ]
+      READ_MEDIA_VIDEO (allow): 
+        null=[
+          Access: [top-s] 2029-12-31 20:32:49.593 (-3h27m10s228ms)
+          Access: [fgsvc-s] 2029-12-23 19:27:11.387 (-8d4h32m48s434ms)
+          Access: [bg-s] 2029-12-30 23:31:48.150 (-1d0h28m11s671ms)
+        ]
+      WRITE_MEDIA_VIDEO (deny): 
+        null=[
+          Reject: [top-s]2029-12-29 23:24:31.201 (-2d0h35m28s620ms)
+          Reject: [fgsvc-s]2029-12-23 19:50:55.927 (-8d4h9m3s894ms)
+          Reject: [bg-s]2029-12-30 23:31:48.108 (-1d0h28m11s713ms)
+        ]
+      READ_MEDIA_IMAGES (allow): 
+        null=[
+          Access: [top-s] 2029-12-31 20:32:49.591 (-3h27m10s230ms)
+          Access: [fgsvc-s] 2029-12-23 19:27:11.385 (-8d4h32m48s436ms)
+          Access: [bg-s] 2029-12-30 23:31:47.928 (-1d0h28m11s893ms)
+        ]
+      WRITE_MEDIA_IMAGES (deny): 
+        null=[
+          Reject: [top-s]2029-12-29 23:24:31.201 (-2d0h35m28s620ms)
+          Reject: [fgsvc-s]2029-12-23 19:50:55.927 (-8d4h9m3s894ms)
+          Reject: [bg-s]2029-12-30 23:31:48.107 (-1d0h28m11s714ms)
+        ]
+      ACCESS_MEDIA_LOCATION (allow): 
+        null=[
+          Access: [top-s] 2029-12-29 23:24:31.202 (-2d0h35m28s619ms)
+          Access: [fgsvc-s] 2029-12-23 19:50:55.927 (-8d4h9m3s894ms)
+          Access: [bg-s] 2029-12-30 23:31:48.112 (-1d0h28m11s709ms)
+        ]
+      MANAGE_EXTERNAL_STORAGE (default): 
+        null=[
+          Reject: [top-s]2029-12-31 20:32:49.589 (-3h27m10s232ms)
+          Reject: [fgsvc-s]2029-12-23 19:27:11.378 (-8d4h32m48s443ms)
+          Reject: [bg-s]2029-12-30 23:31:47.927 (-1d0h28m11s894ms)
+        ]
+      ACCESS_RESTRICTED_SETTINGS (default): 
+        null=[
+          Reject: [fgsvc-s]2029-12-22 18:27:09.233 (-9d5h32m50s588ms)
+        ]
+      READ_MEDIA_VISUAL_USER_SELECTED (allow): 
+        null=[
+          Access: [top-s] 2029-12-31 20:32:49.590 (-3h27m10s231ms)
+          Access: [fgsvc-s] 2029-12-23 19:27:11.384 (-8d4h32m48s437ms)
+          Access: [bg-s] 2029-12-30 23:31:48.150 (-1d0h28m11s671ms)
+        ]
+      CONTROL_AUDIO (foreground): 
+        null=[
+          Access: [top-s] 2029-12-31 00:02:44.073 (-23h57m15s748ms) duration=+2s103ms
+          Access: [fgsvc-s] 2029-12-31 00:03:37.769 (-23h56m22s52ms) duration=+2s510ms
+          Access: [fg-s] 2029-12-30 01:56:34.948 (-1d22h3m24s873ms) duration=+835ms
+        ]
+      CONTROL_AUDIO_PARTIAL (foreground): 
+        null=[
+          Access: [top-s] 2029-12-31 00:02:44.073 (-23h57m15s748ms) duration=+2s103ms
+          Access: [fgsvc-s] 2029-12-31 00:03:37.769 (-23h56m22s52ms) duration=+2s510ms
+          Access: [fg-s] 2029-12-30 01:56:34.947 (-1d22h3m24s874ms) duration=+836ms
+        ]
+      POST_PROMOTED_NOTIFICATIONS (default): 
+        null=[
+          Reject: [top-s]2029-12-31 19:43:58.649 (-4h16m1s172ms)
+          Reject: [fgsvc-s]2029-12-31 19:49:52.647 (-4h10m7s174ms)
+          Reject: [fg-s]2029-12-30 01:56:35.693 (-1d22h3m24s128ms)
+        ]
+  Uid u0a426:
+    state=cch
+    capability=---------
+    appWidgetVisible=false
+      COARSE_LOCATION: mode=foreground
+      FINE_LOCATION: mode=foreground
+      READ_CONTACTS: mode=ignore
+      WRITE_CONTACTS: mode=ignore
+      READ_CALL_LOG: mode=ignore
+      WRITE_CALL_LOG: mode=ignore
+      READ_CALENDAR: mode=ignore
+      WRITE_CALENDAR: mode=ignore
+      POST_NOTIFICATION: mode=ignore
+      CALL_PHONE: mode=ignore
+      READ_SMS: mode=ignore
+      RECEIVE_SMS: mode=ignore
+      RECEIVE_MMS: mode=ignore
+      RECEIVE_WAP_PUSH: mode=ignore
+      SEND_SMS: mode=ignore
+      CAMERA: mode=foreground
+      RECORD_AUDIO: mode=ignore
+      READ_PHONE_STATE: mode=ignore
+      ADD_VOICEMAIL: mode=ignore
+      USE_SIP: mode=ignore
+      PROCESS_OUTGOING_CALLS: mode=ignore
+      BODY_SENSORS: mode=ignore
+      READ_CELL_BROADCASTS: mode=ignore
+      READ_EXTERNAL_STORAGE: mode=ignore
+      WRITE_EXTERNAL_STORAGE: mode=ignore
+      GET_ACCOUNTS: mode=ignore
+      READ_PHONE_NUMBERS: mode=ignore
+      ANSWER_PHONE_CALLS: mode=ignore
+      ACCEPT_HANDOVER: mode=ignore
+      BLUETOOTH_SCAN: mode=ignore
+      ACTIVITY_RECOGNITION: mode=ignore
+      READ_MEDIA_AUDIO: mode=ignore
+      READ_MEDIA_VIDEO: mode=ignore
+      READ_MEDIA_IMAGES: mode=ignore
+      LEGACY_STORAGE: mode=ignore
+      ACCESS_MEDIA_LOCATION: mode=ignore
+      BLUETOOTH_CONNECT: mode=ignore
+      UWB_RANGING: mode=ignore
+      BLUETOOTH_ADVERTISE: mode=ignore
+      NEARBY_WIFI_DEVICES: mode=ignore
+      READ_HEART_RATE: mode=ignore
+      READ_SKIN_TEMPERATURE: mode=ignore
+      RANGING: mode=ignore
+      READ_OXYGEN_SATURATION: mode=ignore
+      READ_BLOOD_PRESSURE: mode=ignore
+      READ_HEART_RATE_VARIABILITY: mode=ignore
+      READ_RESPIRATORY_RATE: mode=ignore
+      READ_VO2_MAX: mode=ignore
+    Package com.facebook.katana:
+      COARSE_LOCATION (allow): 
+        null=[
+          Access: [top-s] 2029-12-31 23:44:04.607 (-15m55s214ms)
+          Reject: [fg-s]2029-12-31 08:15:38.937 (-15h44m20s884ms)
+          Reject: [bg-s]2029-12-31 23:44:33.291 (-15m26s530ms)
+          Reject: [cch-s]2029-12-31 22:58:41.748 (-1h1m18s73ms)
+        ]
+      FINE_LOCATION (allow): 
+        null=[
+          Access: [top-s] 2029-12-31 23:44:04.608 (-15m55s213ms)
+          Reject: [fg-s]2029-12-31 18:08:59.556 (-5h51m0s265ms)
+          Reject: [bg-s]2029-12-31 23:44:33.288 (-15m26s533ms)
+          Reject: [cch-s]2029-12-31 22:58:41.712 (-1h1m18s109ms)
+        ]
+      GPS (allow / switch COARSE_LOCATION=allow): 
+        null=[
+          Access: [top-s] 2029-12-31 23:34:01.989 (-25m57s832ms) duration=+2s890ms
+        ]
+      WIFI_SCAN (allow / switch COARSE_LOCATION=allow): 
+        null=[
+          Access: [top-s] 2029-12-31 23:43:56.746 (-16m3s75ms)
+        ]
+      SYSTEM_ALERT_WINDOW (default): 
+        null=[
+          Reject: [top-s]2029-12-31 22:19:16.355 (-1h40m43s466ms)
+          Reject: [fg-s]2029-12-28 04:53:08.555 (-3d19h6m51s266ms)
+          Reject: [bg-s]2029-12-31 22:19:35.389 (-1h40m24s432ms)
+          Reject: [cch-s]2029-12-31 16:53:08.701 (-7h6m51s120ms)
+        ]
+      READ_CLIPBOARD (allow): 
+        null=[
+          Access: [top-s] 2029-12-31 22:41:01.297 (-1h18m58s524ms)
+        ]
+      WRITE_CLIPBOARD (allow): 
+        null=[
+          Access: [top-s] 2029-12-31 22:41:01.311 (-1h18m58s510ms)
+        ]
+      TAKE_AUDIO_FOCUS (foreground): 
+        null=[
+          Access: [top-s] 2029-12-31 05:32:44.964 (-18h27m14s857ms)
+        ]
+      AUDIO_MEDIA_VOLUME (allow): 
+        null=[
+          Access: [top-s] 2029-12-22 15:10:24.893 (-9d8h49m34s928ms)
+        ]
+      WAKE_LOCK (allow): 
+        null=[
+          Access: [top-s] 2029-12-23 00:43:46.499 (-8d23h16m13s322ms) duration=+4ms
+          Access: [fg-s] 2029-12-20 17:52:54.752 (-11d6h7m5s69ms) duration=+151ms
+          Access: [bg-s] 2029-12-31 16:53:03.612 (-7h6m56s209ms) duration=+1s244ms
+          Access: [cch-s] 2029-12-31 16:53:04.856 (-7h6m54s965ms) duration=+232ms
+        ]
+      MONITOR_LOCATION (allow / switch COARSE_LOCATION=allow): 
+        null=[
+          Access: [top-s] 2029-12-31 23:38:25.752 (-21m34s69ms) duration=+11s996ms
+          Access: [bg-s] 2029-12-31 22:09:00.306 (-1h50m59s515ms) duration=+3ms
+        ]
+      MONITOR_HIGH_POWER_LOCATION (allow / switch COARSE_LOCATION=allow): 
+        null=[
+          Access: [top-s] 2029-12-31 05:56:16.473 (-18h3m43s348ms) duration=+2s239ms
+        ]
+      CHANGE_WIFI_STATE (allow): 
+        null=[
+          Access: [top-s] 2029-12-31 23:38:25.697 (-21m34s124ms)
+        ]
+      WRITE_MEDIA_AUDIO (deny): 
+        null=[
+          Reject: [top-s]2029-12-15 07:20:07.169 (-16d16h39m52s652ms)
+          Reject: [fg-s]2029-12-24 19:24:43.032 (-7d4h35m16s789ms)
+          Reject: [bg-s]2029-12-31 21:12:47.378 (-2h47m12s443ms)
+          Reject: [cch-s]2029-12-25 19:47:59.997 (-6d4h11m59s824ms)
+        ]
+      WRITE_MEDIA_VIDEO (deny): 
+        null=[
+          Reject: [top-s]2029-12-15 07:20:07.169 (-16d16h39m52s652ms)
+          Reject: [fg-s]2029-12-24 19:24:43.033 (-7d4h35m16s788ms)
+          Reject: [bg-s]2029-12-31 21:12:47.379 (-2h47m12s442ms)
+          Reject: [cch-s]2029-12-25 19:47:59.998 (-6d4h11m59s823ms)
+        ]
+      WRITE_MEDIA_IMAGES (deny): 
+        null=[
+          Reject: [top-s]2029-12-15 07:20:07.170 (-16d16h39m52s651ms)
+          Reject: [fg-s]2029-12-24 19:24:43.033 (-7d4h35m16s788ms)
+          Reject: [bg-s]2029-12-31 21:12:47.379 (-2h47m12s442ms)
+          Reject: [cch-s]2029-12-25 19:47:59.998 (-6d4h11m59s823ms)
+        ]
+      MANAGE_EXTERNAL_STORAGE (default): 
+        null=[
+          Reject: [top-s]2029-12-15 07:20:07.169 (-16d16h39m52s652ms)
+          Reject: [fg-s]2029-12-24 19:24:43.031 (-7d4h35m16s790ms)
+          Reject: [bg-s]2029-12-31 21:12:47.374 (-2h47m12s447ms)
+          Reject: [cch-s]2029-12-25 19:47:59.988 (-6d4h11m59s833ms)
+        ]
+      ACCESS_RESTRICTED_SETTINGS (default): 
+        null=[
+          Reject: [top-s]2029-12-31 05:42:28.173 (-18h17m31s648ms)
+        ]
+      READ_MEDIA_VISUAL_USER_SELECTED (allow): 
+        null=[
+          Access: [top-s] 2029-12-15 07:20:07.169 (-16d16h39m52s652ms)
+          Access: [fg-s] 2029-12-24 19:24:43.032 (-7d4h35m16s789ms)
+          Access: [bg-s] 2029-12-31 21:12:47.374 (-2h47m12s447ms)
+          Access: [cch-s] 2029-12-25 19:47:59.990 (-6d4h11m59s831ms)
+        ]
+      CONTROL_AUDIO (foreground): 
+        null=[
+          Access: [top-s] 2029-12-31 07:45:17.520 (-16h14m42s301ms) duration=+7s270ms
+        ]
+      CONTROL_AUDIO_PARTIAL (foreground): 
+        null=[
+          Access: [top-s] 2029-12-31 07:45:17.520 (-16h14m42s301ms) duration=+7s270ms
+        ]
+      READ_CELL_INFO (allow): 
+        null=[
+          Access: [top-s] 2029-12-31 23:44:03.740 (-15m56s81ms)
+          Access: [fg-s] 2029-12-23 00:42:56.583 (-8d23h17m3s238ms)
+        ]
+  Uid u0a20168:
+    state=fg
+    capability=LCMNFUATI
+    appWidgetVisible=false
+      WRITE_CALL_LOG: mode=deny
+      READ_CALENDAR: mode=ignore
+      WRITE_CALENDAR: mode=deny
+      CALL_PHONE: mode=deny
+      WRITE_SMS: mode=deny
+      RECEIVE_SMS: mode=ignore
+      RECEIVE_MMS: mode=ignore
+      RECEIVE_WAP_PUSH: mode=ignore
+      SEND_SMS: mode=deny
+      WRITE_ICC_SMS: mode=deny
+      WRITE_SETTINGS: mode=deny
+      ACCESS_NOTIFICATIONS: mode=deny
+      CAMERA: mode=foreground
+      RECORD_AUDIO: mode=foreground
+      PROJECT_MEDIA: mode=deny
+      ACTIVATE_VPN: mode=deny
+      WRITE_WALLPAPER: mode=deny
+      ADD_VOICEMAIL: mode=ignore
+      USE_SIP: mode=deny
+      PROCESS_OUTGOING_CALLS: mode=deny
+      BODY_SENSORS: mode=ignore
+      READ_CELL_BROADCASTS: mode=ignore
+      READ_EXTERNAL_STORAGE: mode=ignore
+      WRITE_EXTERNAL_STORAGE: mode=deny
+      GET_ACCOUNTS: mode=ignore
+      READ_PHONE_NUMBERS: mode=ignore
+      REQUEST_INSTALL_PACKAGES: mode=deny
+      ANSWER_PHONE_CALLS: mode=deny
+      CHANGE_WIFI_STATE: mode=deny
+      BIND_ACCESSIBILITY_SERVICE: mode=deny
+      ACCEPT_HANDOVER: mode=deny
+      BLUETOOTH_SCAN: mode=deny
+      ACTIVITY_RECOGNITION: mode=ignore
+      SMS_FINANCIAL_TRANSACTIONS: mode=deny
+      LEGACY_STORAGE: mode=deny
+      ACCESS_MEDIA_LOCATION: mode=ignore
+      MANAGE_EXTERNAL_STORAGE: mode=deny
+      ACTIVATE_PLATFORM_VPN: mode=deny
+      MANAGE_ONGOING_CALLS: mode=deny
+      MANAGE_CREDENTIALS: mode=deny
+      USE_ICC_AUTH_WITH_DEVICE_IDENTIFIER: mode=deny
+      SCHEDULE_EXACT_ALARM: mode=deny
+      MANAGE_MEDIA: mode=deny
+      UWB_RANGING: mode=deny
+      BLUETOOTH_ADVERTISE: mode=deny
+      NEARBY_WIFI_DEVICES: mode=deny
+      ESTABLISH_VPN_SERVICE: mode=deny
+      ESTABLISH_VPN_MANAGER: mode=deny
+      READ_WRITE_HEALTH_DATA: mode=deny
+      CAPTURE_CONSENTLESS_BUGREPORT_ON_USERDEBUG_BUILD: mode=deny
+      MEDIA_ROUTING_CONTROL: mode=deny
+      EMERGENCY_LOCATION: mode=deny
+      RECEIVE_SENSITIVE_NOTIFICATIONS: mode=allow
+      READ_HEART_RATE: mode=ignore
+      READ_SKIN_TEMPERATURE: mode=ignore
+      RANGING: mode=deny
+      READ_OXYGEN_SATURATION: mode=ignore
+      WRITE_SYSTEM_PREFERENCES: mode=deny
+      SYSTEM_APPLICATION_OVERLAY: mode=allow
+      COMPUTER_CONTROL: mode=deny
+      ACCESS_LOCAL_NETWORK: mode=deny
+      READ_BLOOD_PRESSURE: mode=ignore
+      READ_HEART_RATE_VARIABILITY: mode=ignore
+      READ_RESPIRATORY_RATE: mode=ignore
+      READ_VO2_MAX: mode=ignore
+      CONTINUE_ACROSS_DEVICES: mode=deny
+      WRITE_RESTRICTED_MESSAGES: mode=deny
+    Package com.google.android.as:
+      COARSE_LOCATION (allow): 
+      FINE_LOCATION (allow): 
+        null=[
+          Access: [fg-s] 2029-12-31 23:44:33.288 (-15m26s533ms)
+        ]
+      READ_CONTACTS (allow): 
+        null=[
+          Access: [fgsvc-s] 2029-12-31 10:10:30.547 (-13h49m29s274ms)
+          Access: [fg-s] 2029-12-31 22:47:56.881 (-1h12m2s940ms)
+        ]
+      READ_CALL_LOG (allow): 
+        null=[
+          Access: [fg-s] 2029-12-31 22:47:56.887 (-1h12m2s934ms)
+        ]
+      READ_SMS (allow): 
+        null=[
+          Access: [fg-s] 2029-12-31 22:47:57.006 (-1h12m2s815ms)
+        ]
+      READ_CLIPBOARD (allow): 
+        null=[
+          Access: [fg-s] 2029-12-31 23:36:54.595 (-23m5s226ms)
+        ]
+      WAKE_LOCK (allow): 
+        null=[
+          Access: [fgsvc-s] 2029-12-31 10:10:30.479 (-13h49m29s342ms) duration=+73ms
+          Access: [fg-s] 2029-12-31 23:51:58.155 (-8m1s666ms) duration=+1s3ms
+        ]
+      MONITOR_LOCATION (allow / switch COARSE_LOCATION=allow): 
+        null=[
+          Access: [fgsvc-s] 2029-12-31 10:10:30.467 (-13h49m29s354ms) duration=+85ms
+          Access: [fg-s] 2029-12-31 10:10:30.552 (-13h49m29s269ms) duration=+13h49m29s400ms
+          Running start at: +13h49m29s269ms
+        ]
+      GET_USAGE_STATS (default): 
+        null=[
+          Reject: [fg-s]2029-12-31 10:10:37.259 (-13h49m22s562ms)
+        ]
+      READ_PHONE_STATE (allow): 
+        null=[
+          Access: [fg-s] 2029-12-31 22:10:43.848 (-1h49m15s973ms)
+        ]
+      START_FOREGROUND (allow): 
+        null=[
+          Access: [fgsvc-s] 2029-12-31 10:10:30.467 (-13h49m29s354ms) duration=+85ms
+          Access: [fg-s] 2029-12-31 10:10:30.552 (-13h49m29s269ms) duration=+13h49m29s400ms
+          Running start at: +13h49m29s269ms
+        ]
+      READ_MEDIA_VIDEO (allow): 
+        null=[
+          Access: [fg-s] 2029-12-31 10:10:30.170 (-13h49m29s651ms)
+        ]
+      READ_MEDIA_IMAGES (allow): 
+        null=[
+          Access: [fg-s] 2029-12-31 10:10:29.931 (-13h49m29s890ms)
+        ]
+      MANAGE_EXTERNAL_STORAGE (default): 
+        null=[
+          Reject: [fg-s]2029-12-31 10:10:29.930 (-13h49m29s891ms)
+        ]
+      USE_ICC_AUTH_WITH_DEVICE_IDENTIFIER (default): 
+        null=[
+          Reject: [fg-s]2029-12-31 22:10:44.850 (-1h49m14s971ms)
+        ]
+      BLUETOOTH_CONNECT (allow): 
+        null=[
+          Access: [fg-s] 2029-12-31 23:30:14.158 (-29m45s663ms)
+        ]
+      READ_RESTRICTED_MESSAGES (ignore): 
+        null=[
+          Reject: [fg-s]2029-12-31 22:47:57.908 (-1h12m1s913ms)
+        ]
+History:  mode=HISTORICAL_MODE_ENABLED_ACTIVE
+SHORT_INTERVAL(Aggregation Bucket)=1 Minute, LONG_INTERVAL(Aggregation Bucket)=15 Minutes
+Database size(bytes): SHORT_INTERVAL=7991296, LONG_INTERVAL=5554176
+Database Total records: SHORT_INTERVAL=86400, LONG_INTERVAL=81310
+----Location, Microphone, and Camera App Ops (Last 1 Hour)----
+
+UID|PACKAGE_NAME|DEVICE_ID|OP_NAME|ATTRIBUTION_TAG|ACCESS_TIME|ACCESS_COUNTS|REJECT_COUNTS|DURATION|UID_STATE|OP_FLAGS|ATTRIBUTION_CHAIN_ID|ATTRIBUTION_FLAGS
+10426|com.facebook.katana|default:0|COARSE_LOCATION|null|2029-12-31 23:44:16.779|0|9|0|bg|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:44:16.779|0|6|0|bg|s|-1|0
+10426|com.facebook.katana|default:0|COARSE_LOCATION|null|2029-12-31 23:43:40.828|2|0|0|top|s|-1|0
+30168|com.google.android.as|default:0|FINE_LOCATION|null|2029-12-31 23:43:40.808|5|0|0|fg|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:43:37.181|27|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|COARSE_LOCATION|null|2029-12-31 23:42:50.798|2|0|0|top|s|-1|0
+30168|com.google.android.as|default:0|FINE_LOCATION|null|2029-12-31 23:42:50.761|2|0|0|fg|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:42:34.225|19|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|COARSE_LOCATION|null|2029-12-31 23:42:09.287|2|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:41:36.521|36|0|0|top|s|-1|0
+30168|com.google.android.as|default:0|FINE_LOCATION|null|2029-12-31 23:41:36.520|3|0|0|fg|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:40:38.828|57|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:39:42.983|25|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|COARSE_LOCATION|null|2029-12-31 23:38:58.098|2|0|0|top|s|-1|0
+30168|com.google.android.as|default:0|FINE_LOCATION|null|2029-12-31 23:38:58.077|2|0|0|fg|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:38:54.039|41|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|COARSE_LOCATION|null|2029-12-31 23:38:36.894|2|0|0|top|s|-1|0
+30168|com.google.android.as|default:0|FINE_LOCATION|null|2029-12-31 23:38:36.866|2|0|0|fg|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:38:34.826|20|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|COARSE_LOCATION|null|2029-12-31 23:38:07.414|1|0|0|top|s|-1|0
+30168|com.google.android.as|default:0|FINE_LOCATION|null|2029-12-31 23:38:07.393|1|0|0|fg|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:38:02.570|48|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|COARSE_LOCATION|null|2029-12-31 23:37:34.627|2|0|0|top|s|-1|0
+30168|com.google.android.as|default:0|FINE_LOCATION|null|2029-12-31 23:37:34.593|2|0|0|fg|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:37:34.305|12|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:36:34.849|48|0|0|top|s|-1|0
+10231|com.google.android.apps.maps|default:0|FINE_LOCATION|null|2029-12-31 23:35:52.024|2|0|0|bg|s|-1|0
+10426|com.facebook.katana|default:0|COARSE_LOCATION|null|2029-12-31 23:35:47.876|1|0|0|top|s|-1|0
+30168|com.google.android.as|default:0|FINE_LOCATION|null|2029-12-31 23:35:47.712|7|0|0|fg|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:35:36.981|47|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|COARSE_LOCATION|null|2029-12-31 23:35:16.109|1|0|0|top|s|-1|0
+30168|com.google.android.as|default:0|FINE_LOCATION|null|2029-12-31 23:35:16.077|2|0|0|fg|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:35:14.065|26|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|COARSE_LOCATION|null|2029-12-31 23:34:57.024|2|0|0|top|s|-1|0
+30168|com.google.android.as|default:0|FINE_LOCATION|null|2029-12-31 23:34:56.984|2|0|0|fg|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:34:45.250|31|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:34:35.017|3|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:34:15.440|15|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:33:37.755|32|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:32:44.886|41|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:31:37.098|28|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|COARSE_LOCATION|null|2029-12-31 23:31:20.043|2|0|0|top|s|-1|0
+30168|com.google.android.as|default:0|FINE_LOCATION|null|2029-12-31 23:30:46.924|3|0|0|fg|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:30:34.186|76|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|COARSE_LOCATION|null|2029-12-31 23:30:16.159|3|0|0|top|s|-1|0
+30168|com.google.android.as|default:0|FINE_LOCATION|null|2029-12-31 23:30:16.150|3|0|0|fg|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:30:13.917|30|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|COARSE_LOCATION|null|2029-12-31 23:28:48.015|2|0|0|top|s|-1|0
+30168|com.google.android.as|default:0|FINE_LOCATION|null|2029-12-31 23:28:46.507|3|0|0|fg|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:28:35.331|41|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|COARSE_LOCATION|null|2029-12-31 23:27:57.234|2|0|0|top|s|-1|0
+30168|com.google.android.as|default:0|FINE_LOCATION|null|2029-12-31 23:27:57.203|2|0|0|fg|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:27:34.888|47|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|COARSE_LOCATION|null|2029-12-31 23:26:43.472|3|0|0|top|s|-1|0
+30168|com.google.android.as|default:0|FINE_LOCATION|null|2029-12-31 23:26:43.413|3|0|0|fg|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:26:34.187|48|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:25:43.186|55|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|COARSE_LOCATION|null|2029-12-31 23:25:05.640|3|0|0|top|s|-1|0
+30168|com.google.android.as|default:0|FINE_LOCATION|null|2029-12-31 23:25:05.625|3|0|0|fg|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:24:35.306|39|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:23:34.231|29|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|COARSE_LOCATION|null|2029-12-31 23:22:50.712|1|0|0|top|s|-1|0
+30168|com.google.android.as|default:0|FINE_LOCATION|null|2029-12-31 23:22:50.681|1|0|0|fg|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:22:35.014|32|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:21:36.898|11|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:20:46.072|31|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:19:36.098|21|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:18:41.210|38|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|COARSE_LOCATION|null|2029-12-31 23:18:11.753|1|0|0|top|s|-1|0
+30168|com.google.android.as|default:0|FINE_LOCATION|null|2029-12-31 23:18:11.714|1|0|0|fg|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:17:51.099|22|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|COARSE_LOCATION|null|2029-12-31 23:17:31.590|1|0|0|top|s|-1|0
+30168|com.google.android.as|default:0|FINE_LOCATION|null|2029-12-31 23:17:31.545|1|0|0|fg|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:16:34.318|34|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|COARSE_LOCATION|null|2029-12-31 23:15:49.024|4|0|0|top|s|-1|0
+30168|com.google.android.as|default:0|FINE_LOCATION|null|2029-12-31 23:15:49.002|5|0|0|fg|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:15:36.442|63|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|COARSE_LOCATION|null|2029-12-31 23:14:54.458|3|0|0|top|s|-1|0
+30168|com.google.android.as|default:0|FINE_LOCATION|null|2029-12-31 23:14:54.427|3|0|0|fg|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:14:43.972|45|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|COARSE_LOCATION|null|2029-12-31 23:13:34.833|1|0|0|top|s|-1|0
+30168|com.google.android.as|default:0|FINE_LOCATION|null|2029-12-31 23:13:34.805|1|0|0|fg|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:13:34.805|24|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|COARSE_LOCATION|null|2029-12-31 23:13:20.649|0|6|0|bg|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:13:20.649|0|4|0|bg|s|-1|0
+30168|com.google.android.as|default:0|FINE_LOCATION|null|2029-12-31 23:13:20.648|2|0|0|fg|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:12:37.637|29|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|COARSE_LOCATION|null|2029-12-31 23:12:04.871|2|0|0|top|s|-1|0
+30168|com.google.android.as|default:0|FINE_LOCATION|null|2029-12-31 23:12:04.846|2|0|0|fg|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:11:34.311|81|0|0|top|s|-1|0
+10231|com.google.android.apps.maps|default:0|FINE_LOCATION|null|2029-12-31 23:11:34.024|1|0|0|top|s|-1|0
+10231|com.google.android.apps.maps|default:0|FINE_LOCATION|null|2029-12-31 23:11:31.490|4|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|COARSE_LOCATION|null|2029-12-31 23:10:01.000|0|3|0|bg|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:10:00.999|0|2|0|bg|s|-1|0
+30168|com.google.android.as|default:0|FINE_LOCATION|null|2029-12-31 23:10:00.998|1|0|0|fg|s|-1|0
+10426|com.facebook.katana|default:0|COARSE_LOCATION|null|2029-12-31 23:08:44.443|0|11|0|bg|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:08:44.442|0|8|0|bg|s|-1|0
+10231|com.google.android.apps.maps|default:0|FINE_LOCATION|null|2029-12-31 23:08:39.505|18|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|COARSE_LOCATION|null|2029-12-31 23:08:38.071|1|0|0|top|s|-1|0
+30168|com.google.android.as|default:0|FINE_LOCATION|null|2029-12-31 23:08:38.051|5|0|0|fg|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:08:34.676|4|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|COARSE_LOCATION|null|2029-12-31 23:07:41.169|1|0|0|top|s|-1|0
+30168|com.google.android.as|default:0|FINE_LOCATION|null|2029-12-31 23:07:41.138|1|0|0|fg|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:07:37.407|18|0|0|top|s|-1|0
+10231|com.google.android.apps.maps|default:0|FINE_LOCATION|null|2029-12-31 23:06:54.278|2|0|0|bg|s|-1|0
+10426|com.facebook.katana|default:0|COARSE_LOCATION|null|2029-12-31 23:06:49.337|1|0|0|top|s|-1|0
+30168|com.google.android.as|default:0|FINE_LOCATION|null|2029-12-31 23:06:49.287|1|0|0|fg|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:06:41.915|32|0|0|top|s|-1|0
+10231|com.google.android.apps.maps|default:0|FINE_LOCATION|null|2029-12-31 23:06:34.592|6|0|0|top|s|-1|0
+10231|com.google.android.apps.maps|default:0|FINE_LOCATION|null|2029-12-31 23:06:14.663|24|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|COARSE_LOCATION|null|2029-12-31 23:06:07.085|1|0|0|top|s|-1|0
+30168|com.google.android.as|default:0|FINE_LOCATION|null|2029-12-31 23:06:07.052|1|0|0|fg|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:05:36.478|16|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|COARSE_LOCATION|null|2029-12-31 23:04:35.568|3|0|0|top|s|-1|0
+30168|com.google.android.as|default:0|FINE_LOCATION|null|2029-12-31 23:04:35.550|3|0|0|fg|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:04:34.183|62|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|COARSE_LOCATION|null|2029-12-31 23:04:33.344|1|0|0|top|s|-1|0
+30168|com.google.android.as|default:0|FINE_LOCATION|null|2029-12-31 23:04:33.301|1|0|0|fg|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:03:41.355|21|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|COARSE_LOCATION|null|2029-12-31 23:02:52.350|1|0|0|top|s|-1|0
+30168|com.google.android.as|default:0|FINE_LOCATION|null|2029-12-31 23:02:52.327|1|0|0|fg|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:02:42.177|51|0|0|top|s|-1|0
+10231|com.google.android.apps.maps|default:0|FINE_LOCATION|null|2029-12-31 23:02:36.388|9|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|COARSE_LOCATION|null|2029-12-31 23:02:11.356|1|0|0|top|s|-1|0
+30168|com.google.android.as|default:0|FINE_LOCATION|null|2029-12-31 23:02:11.321|1|0|0|fg|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:01:38.940|29|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|COARSE_LOCATION|null|2029-12-31 23:01:23.041|1|0|0|top|s|-1|0
+30168|com.google.android.as|default:0|FINE_LOCATION|null|2029-12-31 23:01:23.020|1|0|0|fg|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 23:00:36.695|45|0|0|top|s|-1|0
+10426|com.facebook.katana|default:0|FINE_LOCATION|null|2029-12-31 22:59:49.775|63|0|0|top|s|-1|0

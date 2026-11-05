@@ -1,0 +1,21 @@
+#!/bin/sh
+# appopsy pre-commit: lint, format, types and tests on exactly what is being
+# committed (the staged index), not the working tree. Install once with:
+#   git config core.hooksPath .githooks
+set -eu
+repo=$(git rev-parse --show-toplevel)
+bin="$repo/.venv/bin"
+if [ ! -x "$bin/pytest" ]; then
+    echo "pre-commit: $bin not found; run 'uv sync' first." >&2
+    exit 1
+fi
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/appopsy-pre-commit.XXXXXX")
+trap 'rm -rf "$tmp"' EXIT INT TERM
+git checkout-index --all --prefix="$tmp/"
+cd "$tmp"
+echo "pre-commit: checking the staged tree" >&2
+"$bin/ruff" check -q .
+"$bin/ruff" format --check -q .
+"$bin/mypy" >/dev/null
+"$bin/pytest" -q -p no:cacheprovider >"$tmp/.pytest.log" 2>&1 || { cat "$tmp/.pytest.log" >&2; exit 1; }
+tail -1 "$tmp/.pytest.log" >&2

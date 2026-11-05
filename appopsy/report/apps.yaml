@@ -1,0 +1,54 @@
+# Friendly names for well-known packages, shown as "Facebook (com.facebook.katana)".
+# Unknown packages are shown by package name only.
+#
+# Third-party apps are limited to the fixture allowlist (CLAUDE.md, "Fixtures and
+# redaction"): no other real third-party package may appear in the repo. The rest
+# are Android platform packages and apps that come with the phone.
+#
+# `notes` add one line under a finding for that package and rule.
+# `core` lists the kinds of access (appopsy.labels.ACCESS_CATEGORIES keys) the app's
+# main job needs; "What you can do" doesn't suggest narrowing them.
+
+com.facebook.katana: {name: Facebook}
+com.facebook.orca: {name: Messenger}
+com.whatsapp: {name: WhatsApp, core: [contacts]}
+com.tencent.mm: {name: WeChat}
+com.twitter.android: {name: X}
+
+# Platform components (no launcher icon).
+android: {name: Android system}
+com.android.phone: {name: Phone services}
+com.android.systemui: {name: System UI}
+com.android.location.fused: {name: Fused location provider}
+com.google.android.as: {name: Android System Intelligence}
+com.google.android.packageinstaller: {name: Package installer}
+com.google.android.gms:
+  name: Google Play services
+  notes:
+    chatty-wakeups: >-
+      Play services delivers push notifications and runs sync for many apps, so its
+      wake-ups stand in for many apps at once. Android doesn't let you restrict it.
+
+# Apps that come with Pixel phones (they have a launcher icon).
+com.android.chrome: {name: Chrome}
+com.android.settings: {name: Settings}
+com.android.vending: {name: Google Play Store}
+com.google.android.GoogleCamera: {name: Pixel Camera, core: [camera, microphone]}
+com.google.android.apps.docs: {name: Google Drive}
+com.google.android.apps.maps: {name: Google Maps}
+com.google.android.apps.messaging: {name: Messages, core: [sms, contacts]}
+com.google.android.apps.nbu.files: {name: Files by Google}
+com.google.android.apps.photos: {name: Google Photos, core: [photos_videos]}
+com.google.android.apps.recorder: {name: Recorder}
+com.google.android.apps.tachyon: {name: Google Meet}
+com.google.android.apps.weather: {name: Weather}
+com.google.android.apps.youtube.music: {name: YouTube Music}
+com.google.android.calculator: {name: Calculator}
+com.google.android.calendar: {name: Google Calendar}
+com.google.android.contacts: {name: Contacts, core: [contacts]}
+com.google.android.deskclock: {name: Clock}
+com.google.android.dialer: {name: Phone, core: [contacts, call_log, microphone]}
+com.google.android.gm: {name: Gmail}
+com.google.android.googlequicksearchbox: {name: Google}
+com.google.android.keep: {name: Google Keep}
+com.google.android.youtube: {name: YouTube}

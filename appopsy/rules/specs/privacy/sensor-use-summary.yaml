@@ -1,0 +1,19 @@
+id: sensor-use-summary
+pack: privacy
+title: Recent use of location, camera and microphone
+severity: info
+function: sensor-use-summary
+description: >
+  Which apps recently used location, the camera or the microphone, in which state
+  (foreground, foreground service, background), for how long, and how long each
+  app held location requests. Location requests that Android hides from the
+  app-operations record are listed in the system section.
+rationale: >
+  Settings shows whether an app is allowed to use a sensor; this shows what it
+  actually did, so you can compare the two.
+benign_explanations:
+  - Navigation, camera, video-call and voice apps use these sensors as their main job.
+  - System services (location, assistant, emergency features) use location continuously by design.
+remediation:
+  - "Settings > Security & privacy > Privacy > Privacy dashboard shows the same use over the last 24 hours."
+  - Narrow a permission to "Only while using the app" or "Ask every time" if the use surprises you.

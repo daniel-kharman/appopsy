@@ -1,0 +1,37 @@
+id: over-privileged-app
+pack: privacy
+title: Sensitive access each app is allowed
+severity: info
+function: over-privileged-app
+description: >
+  A ranking of apps by how many of nine kinds of sensitive access Android currently
+  allows them: location, camera, microphone, contacts, call log, text messages,
+  photos and videos, body sensors, and running in the background. For each it shows
+  whether the app may use it at any time or only while in use, and whether the
+  access is full or partial (precise or only approximate location; the whole photo
+  library or only selected photos). Selected photos only is the privacy-friendly
+  choice and isn't counted. Every app you installed is listed, even with nothing
+  allowed; apps that came with the phone are ranked with them; platform
+  components are ranked separately.
+rationale: >
+  Permissions granted once are easy to forget. Seeing which apps hold the most
+  sensitive access, and which can use it at any time, shows where narrowing a
+  permission makes the most difference.
+benign_explanations:
+  - Messaging, camera, maps and phone apps need several of these to do their job.
+  - Being allowed an operation doesn't mean the app uses it; see the sensor-use summary for what happened.
+  - Approximate location only and selected photos only are partial access; selected photos only isn't counted at all.
+remediation:
+  - "Settings > Security & privacy > Privacy > Permission manager lists every app per permission."
+  - Change access the app doesn't need to "Only while using the app", "Ask every time" or "Don't allow".
+source:
+  title: No external source for a cut-off
+  checked: 2026-11-01
+  note: >
+    This rule has no threshold on purpose. There is no published guidance on how
+    many sensitive permissions make an app "over-privileged", so appopsy doesn't
+    pick a number: it ranks apps by the number of kinds of access allowed, then by
+    how many are allowed at any time, then by how many are full rather than partial,
+    and reports every app at `info`. A kind of access counts once however many
+    Android operations sit behind it. Operations the dump doesn't print for an app
+    (e.g. RUN_ANY_IN_BACKGROUND when left at its default) are not counted.

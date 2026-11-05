@@ -1,0 +1,6 @@
+package:com.facebook.orca  installer=com.android.vending
+package:com.tencent.mm  installer=com.android.vending
+package:com.whatsapp  installer=com.android.vending
+package:com.facebook.katana  installer=com.android.vending
+package:com.twitter.android  installer=com.android.vending
+package:com.example.sideloaded  installer=com.google.android.packageinstaller

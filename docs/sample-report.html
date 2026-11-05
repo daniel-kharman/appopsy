@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>appopsy report: Pixel 11 Pro</title>
+<style>
+:root {
+  --bg: #ffffff; --fg: #1d1f23; --muted: #5d6470; --line: #dde1e6; --panel: #f5f7f9;
+  --link: #1f5fbf; --concern: #b3261e; --notable: #9a5b00; --info: #3b6ea8;
+  --critical: #8c0f0f; --high: #b3261e; --medium: #9a5b00; --low: #3b6ea8;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #15171a; --fg: #e6e8eb; --muted: #a3aab4; --line: #30353b; --panel: #1d2024;
+    --link: #8ab4f8; --concern: #f28b82; --notable: #f6c26b; --info: #8ab4f8;
+    --critical: #ff6b6b; --high: #f28b82; --medium: #f6c26b; --low: #8ab4f8;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 960px; margin: 0 auto; padding: 24px 16px 64px; }
+h1 { font-size: 1.7rem; margin: 0 0 4px; }
+h2 { font-size: 1.35rem; margin: 40px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+h3 { font-size: 1.15rem; margin: 28px 0 8px; }
+h4 { font-size: 1.02rem; margin: 22px 0 6px; }
+p { margin: 8px 0; }
+a { color: var(--link); }
+code { font: 0.88em ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--panel);
+  padding: 1px 4px; border-radius: 4px; overflow-wrap: anywhere; }
+.muted, .evidence { color: var(--muted); }
+.evidence { font-size: 0.86rem; overflow-wrap: anywhere; }
+.headline { font-size: 1.08rem; background: var(--panel); border-left: 4px solid var(--notable);
+  padding: 12px 16px; border-radius: 6px; margin: 20px 0; }
+.redacted { border: 1px solid var(--line); border-radius: 6px; padding: 10px 14px; margin: 16px 0; }
+.wrap { overflow-x: auto; margin: 10px 0; }
+table { border-collapse: collapse; width: 100%; font-size: 0.92rem; }
+th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.finding { border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; margin: 12px 0; }
+.finding > p:first-child { margin-top: 0; }
+.badge { display: inline-block; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.02em;
+  text-transform: uppercase; padding: 1px 8px; border-radius: 10px; border: 1px solid currentColor; }
+.sev-concern { color: var(--concern); }
+.sev-notable { color: var(--notable); }
+.sev-info { color: var(--info); }
+.sev-critical { color: var(--critical); }
+.sev-high { color: var(--high); }
+.sev-medium { color: var(--medium); }
+.sev-low { color: var(--low); }
+ul { padding-left: 22px; }
+li { margin: 4px 0; }
+details { margin: 10px 0; }
+summary { cursor: pointer; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+<h1>appopsy report: Pixel 11 Pro</h1>
+<p class="muted">Google Pixel 11 Pro,
+Android 17 (SDK 37),
+security patch 2026-10-05.
+Collected on a date not shown in this copy, with appopsy 0.1.0.dev0.</p>
+
+<div class="redacted"><strong>Redacted copy for sharing.</strong>
+Every app in it is a system app or a well-known app, so all keep their names.
+Times are shown as days before collection. Check it before you share it.</div>
+
+<p class="headline">Facebook, WeChat and WhatsApp tried to use your location in the background and were refused, because your settings allow it only while the app is in use. Google Maps used your precise location while not on screen, and Android allowed it. Facebook (14) and Messenger (3) have background jobs that can run on battery and mobile data at any time, 17 in all. Google Maps, which came with the phone, has the broadest access: 6 of the 9 kinds of sensitive access appopsy checks, including your precise location, contacts, photos and videos at any time.</p>
+
+<p>This report says what the apps on this phone are allowed to do, what Android recorded
+them doing, and what they tried to do and were refused. appopsy only reads: nothing on the
+phone was changed. Each finding says what was seen, why it may matter, what is probably
+harmless about it, and what you can do.</p>
+<h2 id="summary">Summary</h2>
+<div class="wrap"><table>
+<thead><tr><th>Privacy findings</th><th>Count</th></tr></thead>
+<tbody>
+<tr><td><span class="badge sev-concern">concern</span></td><td class="num">0</td></tr>
+<tr><td><span class="badge sev-notable">notable</span></td><td class="num">6</td></tr>
+<tr><td><span class="badge sev-info">info</span></td><td class="num">11</td></tr>
+<tr><td>System components (listed separately)</td><td class="num">13</td></tr>
+</tbody></table></div>
+<p>7 apps have findings; <a href="#apps">Per-app detail</a> lists them, most severe first.</p>
+
+<h2 id="privacy">Privacy findings</h2>
+<h3><span class="badge sev-notable">notable</span></h3>
+<h4 id="rule-background-sensor-attempt-notable">Tried to use a sensor in the background and was refused</h4>
+<p>Android recorded the app trying to use location, the camera, the microphone or body sensors while it was in the background, at a time when it was only allowed to use them in the foreground (or not at all), and refused it.
+</p>
+<p><strong>Why it matters:</strong> The attempt shows the app wanted sensor data while you weren&#39;t using it. Your setting worked, but the app kept trying: repeated refused attempts can mean it is built to collect data in the background where it is allowed to.
+</p>
+<div class="finding">
+<p><strong>Facebook (com.facebook.katana)</strong> tried to use your location in the background, where it isn&#39;t allowed, and was refused.</p>
+<div class="wrap"><table>
+<thead><tr><th>Sensor</th><th>Setting</th><th>Refused while</th><th>Last refused</th></tr></thead>
+<tbody>
+<tr><td>precise location (FINE_LOCATION)</td><td>only while in use</td><td>in the background, cached in the background</td><td>yesterday</td></tr>
+<tr><td>approximate location (COARSE_LOCATION)</td><td>only while in use</td><td>in the background, cached in the background</td><td>yesterday</td></tr>
+</tbody></table></div>
+
+<p class="evidence">Evidence: dumpsys-appops.txt: lines 916, 917, 969, 970, 976, 977</p>
+</div>
+<div class="finding">
+<p><strong>WeChat (com.tencent.mm)</strong> tried to use your precise location in the background, where it isn&#39;t allowed, and was refused.</p>
+<div class="wrap"><table>
+<thead><tr><th>Sensor</th><th>Setting</th><th>Refused while</th><th>Last refused</th></tr></thead>
+<tbody>
+<tr><td>precise location (FINE_LOCATION)</td><td>only while in use</td><td>in the background</td><td>2 days ago</td></tr>
+</tbody></table></div>
+
+<p class="evidence">Evidence: dumpsys-appops.txt: lines 639, 691</p>
+</div>
+<div class="finding">
+<p><strong>WhatsApp (com.whatsapp)</strong> tried to use your approximate location in the background, where it isn&#39;t allowed, and was refused.</p>
+<div class="wrap"><table>
+<thead><tr><th>Sensor</th><th>Setting</th><th>Refused while</th><th>Last refused</th></tr></thead>
+<tbody>
+<tr><td>approximate location (COARSE_LOCATION)</td><td>only while in use</td><td>in the background, cached in the background</td><td>4 days ago</td></tr>
+</tbody></table></div>
+
+<p class="evidence">Evidence: dumpsys-appops.txt: lines 1086, 1132, 1133</p>
+</div>
+<p><strong>Probably harmless:</strong></p>
+<ul><li>Some apps ask for location when they start or resume and are briefly classed as background while doing so.</li><li>A feature you enabled (location sharing, check-ins, nearby friends) may try to run in the background.</li><li>Libraries inside the app (ads, analytics, maps) can make the request without the app&#39;s own features needing it.</li></ul>
+<h4 id="rule-background-sensor-use-notable">Used a sensor while not on screen</h4>
+<p>Android allowed the app to use location, the camera, the microphone or body sensors while it wasn&#39;t on screen: in the background, or from a foreground service (which shows a notification while it runs). These are deliveries the app received, not requests it made. Camera or microphone use in the background proper is a concern; from a foreground service only, Android shows a notification and the privacy indicator while it happens, so it&#39;s notable.
+</p>
+<p><strong>Why it matters:</strong> This is sensor data actually collected while you weren&#39;t looking at the app. The microphone and camera matter most: they can capture what&#39;s around you. Background location builds a record of where you go.
+</p>
+<div class="finding">
+<p><strong>Google Maps (com.google.android.apps.maps)</strong> used your precise location while it wasn&#39;t on screen (in the background and from a foreground service), and Android allowed it.</p>
+<div class="wrap"><table>
+<thead><tr><th>Sensor</th><th>Setting</th><th>Used while</th><th>Last used</th></tr></thead>
+<tbody>
+<tr><td>precise location (FINE_LOCATION)</td><td>at any time</td><td>in the background, cached in the background, foreground service</td><td>yesterday</td></tr>
+</tbody></table></div>
+
+<p class="evidence">Evidence: dumpsys-appops.txt: lines 479, 482, 484</p>
+</div>
+<p><strong>Probably harmless:</strong></p>
+<ul><li>Navigation keeps using location from a foreground service while the screen is off or another app is open.</li><li>Call and voice-message apps use the microphone from a foreground service during a call or recording.</li><li>Features you turned on (location sharing, location history, fitness tracking) use sensors in the background by design.</li></ul>
+<h4 id="rule-unconstrained-background-work-notable">Background work that can run at any time</h4>
+<p>The app has scheduled jobs that require neither charging, nor the phone being idle, nor an unmetered (Wi-Fi) network. They can run whenever the system lets them, on battery and on mobile data. &#34;Any network&#34; is not counted as a constraint. The report lists what each job does require.
+</p>
+<p><strong>Why it matters:</strong> Background jobs are how apps prefetch content, upload data and report analytics while you aren&#39;t using them. Jobs tied to charging, idle or Wi-Fi run when it costs you least; jobs without those conditions can use battery and mobile data at any time.
+</p>
+<p>One row per app, with up to three of its jobs. Details: <a href="#appendix-jobs">appendix</a>.</p>
+<div class="wrap"><table>
+<thead><tr><th>App</th><th>Jobs</th><th>Includes</th></tr></thead>
+<tbody>
+<tr><td>Facebook (com.facebook.katana)</td><td>14</td><td>IdentityHashWorker, OfflineFeedBackgroundPrefetchWorker, NotificationsPermissionWorker, ...</td></tr>
+<tr><td>Messenger (com.facebook.orca)</td><td>3</td><td>EarlyAccessSyncWorker, SimCarrierInfoLogWorker, LollipopUploadService</td></tr>
+</tbody></table></div>
+
+<p><strong>Probably harmless:</strong></p>
+<ul><li>Some work is time-sensitive (delivering a message you sent, a backup you asked for) and shouldn&#39;t wait for charging.</li><li>A job may run rarely; being able to run at any time doesn&#39;t mean it runs often.</li><li>Jobs still have to wait for Doze and battery-saver windows, so &#34;any time&#34; is an upper bound.</li></ul>
+<h3><span class="badge sev-info">info</span></h3>
+<h4 id="rule-over-privileged-app-info">Sensitive access each app is allowed</h4>
+<p>A ranking of apps by how many of nine kinds of sensitive access Android currently allows them: location, camera, microphone, contacts, call log, text messages, photos and videos, body sensors, and running in the background. For each it shows whether the app may use it at any time or only while in use, and whether the access is full or partial (precise or only approximate location; the whole photo library or only selected photos). Selected photos only is the privacy-friendly choice and isn&#39;t counted. Every app you installed is listed, even with nothing allowed; apps that came with the phone are ranked with them; platform components are ranked separately.
+</p>
+<p><strong>Why it matters:</strong> Permissions granted once are easy to forget. Seeing which apps hold the most sensitive access, and which can use it at any time, shows where narrowing a permission makes the most difference.
+</p>
+<p>Ranked by kinds of access, then how many at any time. Each app allowed something at any time has a full entry. Details: <a href="#appendix-access">appendix</a>.</p>
+<div class="wrap"><table>
+<thead><tr><th>App</th><th>Kinds of access</th><th>At any time</th></tr></thead>
+<tbody>
+<tr><td>Google Maps (com.google.android.apps.maps)</td><td>6: location, camera, microphone, contacts, photos and videos, running in the background</td><td>3</td></tr>
+<tr><td>WhatsApp (com.whatsapp)</td><td>5: location, camera, microphone, contacts, photos and videos</td><td>2</td></tr>
+<tr><td>Phone (com.google.android.dialer)</td><td>4: camera, microphone, contacts, call log</td><td>2</td></tr>
+<tr><td>Facebook (com.facebook.katana)</td><td>2: location, camera</td><td>—</td></tr>
+<tr><td>Messenger (com.facebook.orca)</td><td>2: camera, microphone</td><td>—</td></tr>
+<tr><td>WeChat (com.tencent.mm)</td><td>1: location</td><td>—</td></tr>
+<tr><td>X (com.twitter.android)</td><td>none</td><td>—</td></tr>
+</tbody></table></div>
+
+<p><strong>Probably harmless:</strong></p>
+<ul><li>Messaging, camera, maps and phone apps need several of these to do their job.</li><li>Being allowed an operation doesn&#39;t mean the app uses it; see the sensor-use summary for what happened.</li><li>Approximate location only and selected photos only are partial access; selected photos only isn&#39;t counted at all.</li></ul>
+<h4 id="rule-sensor-use-summary-info">Recent use of location, camera and microphone</h4>
+<p>Which apps recently used location, the camera or the microphone, in which state (foreground, foreground service, background), for how long, and how long each app held location requests. Location requests that Android hides from the app-operations record are listed in the system section.
+</p>
+<p><strong>Why it matters:</strong> Settings shows whether an app is allowed to use a sensor; this shows what it actually did, so you can compare the two.
+</p>
+<p>One row per app; each use, by sensor and state, is listed. Details: <a href="#appendix-sensors">appendix</a>.</p>
+<div class="wrap"><table>
+<thead><tr><th>App</th><th>Used</th><th>Last used</th><th>Longest location request</th></tr></thead>
+<tbody>
+<tr><td>Facebook (com.facebook.katana)</td><td>your location</td><td>yesterday</td><td>—</td></tr>
+<tr><td>Google Maps (com.google.android.apps.maps)</td><td>your precise location, plus the camera and the microphone</td><td>yesterday</td><td>3:37:19</td></tr>
+<tr><td>WhatsApp (com.whatsapp)</td><td>your location, plus the camera and the microphone</td><td>yesterday</td><td>—</td></tr>
+</tbody></table></div>
+
+<p><strong>Probably harmless:</strong></p>
+<ul><li>Navigation, camera, video-call and voice apps use these sensors as their main job.</li><li>System services (location, assistant, emergency features) use location continuously by design.</li></ul>
+<h4 id="rule-unconstrained-background-work-info">Background work that can run at any time</h4>
+<p>The app has scheduled jobs that require neither charging, nor the phone being idle, nor an unmetered (Wi-Fi) network. They can run whenever the system lets them, on battery and on mobile data. &#34;Any network&#34; is not counted as a constraint. The report lists what each job does require.
+</p>
+<p><strong>Why it matters:</strong> Background jobs are how apps prefetch content, upload data and report analytics while you aren&#39;t using them. Jobs tied to charging, idle or Wi-Fi run when it costs you least; jobs without those conditions can use battery and mobile data at any time.
+</p>
+<p>These apps came with the phone; most of their jobs come from shared Google libraries. Details: <a href="#appendix-jobs">appendix</a>.</p>
+<div class="wrap"><table>
+<thead><tr><th>App</th><th>Jobs</th></tr></thead>
+<tbody>
+<tr><td>Google Maps (com.google.android.apps.maps)</td><td>1</td></tr>
+</tbody></table></div>
+
+<p><strong>Probably harmless:</strong></p>
+<ul><li>Some work is time-sensitive (delivering a message you sent, a backup you asked for) and shouldn&#39;t wait for charging.</li><li>A job may run rarely; being able to run at any time doesn&#39;t mean it runs often.</li><li>Jobs still have to wait for Doze and battery-saver windows, so &#34;any time&#34; is an upper bound.</li></ul>
+
+<h2 id="apps">Per-app detail</h2>
+<ul>
+<li><strong>Facebook (com.facebook.katana)</strong>, Google Play:
+<a href="#rule-background-sensor-attempt-notable">Tried to use a sensor in the background and was refused</a>
+<span class="badge sev-notable">notable</span>; <a href="#rule-unconstrained-background-work-notable">Background work that can run at any time</a>
+<span class="badge sev-notable">notable</span>; <a href="#rule-over-privileged-app-info">Sensitive access each app is allowed</a>
+<span class="badge sev-info">info</span>; <a href="#rule-sensor-use-summary-info">Recent use of location, camera and microphone</a>
+<span class="badge sev-info">info</span></li>
+<li><strong>Google Maps (com.google.android.apps.maps)</strong>, came with the phone:
+<a href="#rule-background-sensor-use-notable">Used a sensor while not on screen</a>
+<span class="badge sev-notable">notable</span>; <a href="#rule-over-privileged-app-info">Sensitive access each app is allowed</a>
+<span class="badge sev-info">info</span>; <a href="#rule-sensor-use-summary-info">Recent use of location, camera and microphone</a>
+<span class="badge sev-info">info</span>; <a href="#rule-unconstrained-background-work-info">Background work that can run at any time</a>
+<span class="badge sev-info">info</span></li>
+<li><strong>WhatsApp (com.whatsapp)</strong>, Google Play:
+<a href="#rule-background-sensor-attempt-notable">Tried to use a sensor in the background and was refused</a>
+<span class="badge sev-notable">notable</span>; <a href="#rule-over-privileged-app-info">Sensitive access each app is allowed</a>
+<span class="badge sev-info">info</span>; <a href="#rule-sensor-use-summary-info">Recent use of location, camera and microphone</a>
+<span class="badge sev-info">info</span></li>
+<li><strong>Messenger (com.facebook.orca)</strong>, Google Play:
+<a href="#rule-unconstrained-background-work-notable">Background work that can run at any time</a>
+<span class="badge sev-notable">notable</span>; <a href="#rule-over-privileged-app-info">Sensitive access each app is allowed</a>
+<span class="badge sev-info">info</span></li>
+<li><strong>WeChat (com.tencent.mm)</strong>, Google Play:
+<a href="#rule-background-sensor-attempt-notable">Tried to use a sensor in the background and was refused</a>
+<span class="badge sev-notable">notable</span>; <a href="#rule-over-privileged-app-info">Sensitive access each app is allowed</a>
+<span class="badge sev-info">info</span></li>
+<li><strong>Phone (com.google.android.dialer)</strong>, came with the phone:
+<a href="#rule-over-privileged-app-info">Sensitive access each app is allowed</a>
+<span class="badge sev-info">info</span></li>
+<li><strong>X (com.twitter.android)</strong>, Google Play:
+<a href="#rule-over-privileged-app-info">Sensitive access each app is allowed</a>
+<span class="badge sev-info">info</span></li>
+</ul>
+
+<h2 id="actions">What you can do</h2>
+<h3>Tried to use a sensor in the background and was refused</h3>
+<ul><li>Facebook: Settings &gt; Apps &gt; Facebook &gt; Permissions &gt; Location: choose “Don&#39;t allow” if you don&#39;t use the features that need it.</li><li>WeChat: Settings &gt; Apps &gt; WeChat &gt; Permissions &gt; Location: choose “Don&#39;t allow” if you don&#39;t use the features that need it.</li><li>WhatsApp: Settings &gt; Apps &gt; WhatsApp &gt; Permissions &gt; Location: choose “Don&#39;t allow” if you don&#39;t use the features that need it.</li></ul>
+<p class="muted">In general:</p>
+<ul><li>Keep the permission at &#34;Only while using the app&#34; (Settings &gt; Apps &gt; (the app) &gt; Permissions).</li><li>Turn off the feature that needs background access if you don&#39;t use it.</li><li>If the attempts continue, set the app&#39;s battery use to Restricted.</li></ul>
+<h3>Used a sensor while not on screen</h3>
+<ul><li>Google Maps: Settings &gt; Apps &gt; Google Maps &gt; Permissions: set Location to “Allow only while using the app”. Use from a foreground service you start (such as navigation) keeps working.</li></ul>
+<p class="muted">In general:</p>
+<ul><li>Settings &gt; Apps &gt; (the app) &gt; Permissions &gt; Location: choose &#34;Allow only while using the app&#34;.</li><li>Settings &gt; Apps &gt; (the app) &gt; Permissions &gt; Microphone or Camera: choose &#34;Ask every time&#34; or &#34;Don&#39;t allow&#34;.</li><li>Settings &gt; Security &amp; privacy &gt; Privacy &gt; Privacy dashboard shows when each app used them in the last 24 hours.</li></ul>
+<h3>Background work that can run at any time</h3>
+<ul><li>Settings &gt; Apps &gt; (the app) &gt; App battery usage: choose Restricted to defer its background jobs. Apps and their jobs: Facebook (14), Messenger (3).</li></ul>
+<p class="muted">In general:</p>
+<ul><li>Settings &gt; Apps &gt; (the app) &gt; App battery usage: choose Restricted, which defers most background jobs.</li><li>Settings &gt; Apps &gt; (the app) &gt; Mobile data: turn off Background data to keep jobs to Wi-Fi.</li></ul>
+<h3>Sensitive access each app is allowed</h3>
+<ul><li>Google Maps: Settings &gt; Apps &gt; Google Maps &gt; Permissions: set Location to “Allow only while using the app”; set Contacts to “Don&#39;t allow” if it doesn&#39;t need them; set Photos and videos to “Allow limited access”.</li><li>WhatsApp: Settings &gt; Apps &gt; WhatsApp &gt; Permissions: set Photos and videos to “Allow limited access”.</li></ul>
+<p class="muted">In general:</p>
+<ul><li>Settings &gt; Security &amp; privacy &gt; Privacy &gt; Permission manager lists every app per permission.</li><li>Change access the app doesn&#39;t need to &#34;Only while using the app&#34;, &#34;Ask every time&#34; or &#34;Don&#39;t allow&#34;.</li></ul>
+<h3>Recent use of location, camera and microphone</h3>
+<ul><li>Settings &gt; Security &amp; privacy &gt; Privacy &gt; Privacy dashboard shows the same use over the last 24 hours.</li><li>Narrow a permission to &#34;Only while using the app&#34; or &#34;Ask every time&#34; if the use surprises you.</li></ul>
+
+<h2 id="system">System components</h2>
+<p>These packages are part of Android itself and have no app icon. Findings about them are
+listed for completeness at the lowest level of their scale and are not counted with the
+apps above. They can't be uninstalled, and most can't be restricted. Apps that came with
+the phone and have an icon (such as Maps) are listed with your other apps above.</p>
+<div class="wrap"><table>
+<thead><tr><th>Finding</th><th>Components</th></tr></thead>
+<tbody>
+<tr><td>Used a sensor while not on screen</td><td>1: Android System Intelligence (com.google.android.as, secondary UID 30168)</td></tr>
+<tr><td>Wakes the phone often</td><td>1: Google Play services (com.google.android.gms)</td></tr>
+<tr><td>Sensitive access each app is allowed</td><td>1: Android System Intelligence (com.google.android.as)</td></tr>
+<tr><td>Recent use of location, camera and microphone</td><td>6: Android system (android), com.android.imsstack, Fused location provider (com.android.location.fused), Phone services (com.android.phone) and 2 more</td></tr>
+<tr><td>Background work that can run at any time</td><td>2: Android system (android) and Android System Intelligence (com.google.android.as)</td></tr>
+</tbody></table></div>
+
+<ul><li><strong>Google Play services (com.google.android.gms)</strong>: Play services delivers push notifications and runs sync for many apps, so its wake-ups stand in for many apps at once. Android doesn&#39;t let you restrict it.</li></ul><p class="muted">Each finding in full: <a href="#appendix-system">appendix</a>.</p>
+
+<h2 id="method">How this report was made</h2>
+<ul>
+<li><strong>Tried to use a sensor in the background and was refused</strong> (<code>background-sensor-attempt</code>, privacy, notable).
+</li>
+<li><strong>Used a sensor while not on screen</strong> (<code>background-sensor-use</code>, privacy, notable).
+<br>No threshold: No threshold: one background delivery is enough to report. Severity follows the sensor and how visible the use was: concern for the microphone or camera used in the background or cached state (bg, cch), where nothing on screen shows it; notable for the microphone or camera used only from a foreground service (fgsvc), because Android shows the service&#39;s notification and the privacy indicator while it runs; notable for location and body sensors in any of these states (body sensors grouped with location by appopsy, not by an external source). Only Access events in the bg, cch and fgsvc states count, for FINE_LOCATION, COARSE_LOCATION, CAMERA, RECORD_AUDIO and BODY_SENSORS; location requests (MONITOR_LOCATION, MONITOR_HIGH_POWER_LOCATION) and GPS never do, because they don&#39;t show that anything was delivered.</li>
+<li><strong>Wakes the phone often</strong> (<code>chatty-wakeups</code>, privacy, notable).
+<br>Threshold <code>wakeups_per_hour</code>: 10 wakeup alarms (RTC_WAKEUP and ELAPSED_REALTIME_WAKEUP) per hour. Source:
+<a href="https://support.google.com/googleplay/android-developer/answer/7385505" rel="noreferrer">Play Console Help, &#34;Excessive wake-ups&#34; (Android vitals)</a>,
+checked 2026-11-01, verified. Android vitals counts more than 10 wake-ups per hour in a battery session, only while the device is not charging, and only ELAPSED_REALTIME_WAKEUP and RTC_WAKEUP alarms. appopsy counts only those two alarm types too, but dumpsys alarm gives a since-boot total, so its rate is wakeups since boot divided by uptime, charging time included. That approximates the battery-session rate and likely understates it.</li>
+<li><strong>Sensitive access each app is allowed</strong> (<code>over-privileged-app</code>, privacy, info).
+<br>No threshold: This rule has no threshold on purpose. There is no published guidance on how many sensitive permissions make an app &#34;over-privileged&#34;, so appopsy doesn&#39;t pick a number: it ranks apps by the number of kinds of access allowed, then by how many are allowed at any time, then by how many are full rather than partial, and reports every app at <code>info</code>. A kind of access counts once however many Android operations sit behind it. Operations the dump doesn&#39;t print for an app (e.g. RUN_ANY_IN_BACKGROUND when left at its default) are not counted.</li>
+<li><strong>Recent use of location, camera and microphone</strong> (<code>sensor-use-summary</code>, privacy, info).
+</li>
+<li><strong>Background work that can run at any time</strong> (<code>unconstrained-background-work</code>, privacy, notable).
+<br>No threshold: Apps you installed are reported at notable. Apps that came with the phone (a system package with a launcher icon) are reported at info: on a typical phone they schedule dozens of such jobs, most from shared Google libraries (the notifications platform, an app framework, account sync), so listing each at notable would bury the apps you chose. The report shows them as one compact table with full job lists in an appendix. Platform components stay in the system section, as for every rule.</li>
+</ul>
+<p class="muted">Evidence gives line numbers in the files of the case folder's
+<code>raw/</code> directory, which hold the phone's output exactly as collected.
+</p>
+<h2 id="appendix">Appendix</h2>
+<details id="appendix-access"><summary><strong>Sensitive access at any time</strong></summary>
+<p>Every app allowed at least one kind of sensitive access at any time, in rank order.</p>
+<h4>Google Maps (com.google.android.apps.maps)</h4><p>is allowed 6 of the 9 kinds of sensitive access appopsy checks: your precise location, contacts, photos and videos, plus running in the background at any time; the camera and the microphone only while it&#39;s in use. It ranks 1 of 7 apps.</p><div class="wrap"><table>
+<thead><tr><th>Allowed</th><th>When</th><th>Scope</th></tr></thead>
+<tbody>
+<tr><td>Location (FINE_LOCATION, COARSE_LOCATION)</td><td>at any time</td><td>precise</td></tr>
+<tr><td>Camera (CAMERA)</td><td>only while in use</td><td>—</td></tr>
+<tr><td>Microphone (RECORD_AUDIO)</td><td>only while in use</td><td>—</td></tr>
+<tr><td>Contacts (READ_CONTACTS)</td><td>at any time</td><td>—</td></tr>
+<tr><td>Photos and videos (READ_MEDIA_IMAGES, READ_MEDIA_VIDEO, READ_MEDIA_VISUAL_USER_SELECTED)</td><td>at any time</td><td>whole library</td></tr>
+<tr><td>Running in the background (RUN_ANY_IN_BACKGROUND)</td><td>at any time</td><td>—</td></tr>
+</tbody></table></div>
+<h4>WhatsApp (com.whatsapp)</h4><p>is allowed 5 of the 9 kinds of sensitive access appopsy checks: your contacts, photos and videos at any time; your precise location, plus the camera and the microphone only while it&#39;s in use. It ranks 2 of 7 apps.</p><div class="wrap"><table>
+<thead><tr><th>Allowed</th><th>When</th><th>Scope</th></tr></thead>
+<tbody>
+<tr><td>Location (FINE_LOCATION, COARSE_LOCATION)</td><td>only while in use</td><td>precise</td></tr>
+<tr><td>Camera (CAMERA)</td><td>only while in use</td><td>—</td></tr>
+<tr><td>Microphone (RECORD_AUDIO)</td><td>only while in use</td><td>—</td></tr>
+<tr><td>Contacts (READ_CONTACTS)</td><td>at any time</td><td>—</td></tr>
+<tr><td>Photos and videos (READ_MEDIA_IMAGES, READ_MEDIA_VIDEO, READ_MEDIA_VISUAL_USER_SELECTED)</td><td>at any time</td><td>whole library</td></tr>
+</tbody></table></div>
+<h4>Phone (com.google.android.dialer)</h4><p>is allowed 4 of the 9 kinds of sensitive access appopsy checks: your contacts and call log at any time; the camera and the microphone only while it&#39;s in use. It ranks 3 of 7 apps.</p><div class="wrap"><table>
+<thead><tr><th>Allowed</th><th>When</th></tr></thead>
+<tbody>
+<tr><td>Camera (CAMERA)</td><td>only while in use</td></tr>
+<tr><td>Microphone (RECORD_AUDIO)</td><td>only while in use</td></tr>
+<tr><td>Contacts (READ_CONTACTS)</td><td>at any time</td></tr>
+<tr><td>Call log (READ_CALL_LOG)</td><td>at any time</td></tr>
+</tbody></table></div>
+</details>
+<details id="appendix-sensors"><summary><strong>Recent sensor use</strong></summary>
+<p>Each app&#39;s recorded uses, by sensor and the state the app was in.</p>
+<h4>Facebook (com.facebook.katana)</h4><div class="wrap"><table>
+<thead><tr><th>Sensor</th><th>App was</th><th>Last used</th></tr></thead>
+<tbody>
+<tr><td>approximate location (COARSE_LOCATION)</td><td>open on screen</td><td>yesterday</td></tr>
+<tr><td>precise location (FINE_LOCATION)</td><td>open on screen</td><td>yesterday</td></tr>
+</tbody></table></div>
+<h4>Google Maps (com.google.android.apps.maps)</h4><div class="wrap"><table>
+<thead><tr><th>Sensor</th><th>App was</th><th>Last used</th><th>For</th></tr></thead>
+<tbody>
+<tr><td>precise location (FINE_LOCATION)</td><td>open on screen</td><td>yesterday</td><td>—</td></tr>
+<tr><td>precise location (FINE_LOCATION)</td><td>foreground service</td><td>yesterday</td><td>—</td></tr>
+<tr><td>precise location (FINE_LOCATION)</td><td>in the foreground</td><td>yesterday</td><td>—</td></tr>
+<tr><td>precise location (FINE_LOCATION)</td><td>in the background</td><td>yesterday</td><td>—</td></tr>
+<tr><td>precise location (FINE_LOCATION)</td><td>cached in the background</td><td>yesterday</td><td>—</td></tr>
+<tr><td>camera (CAMERA)</td><td>open on screen</td><td>13 days ago</td><td>0:00:02</td></tr>
+<tr><td>microphone (RECORD_AUDIO)</td><td>open on screen</td><td>2 days ago</td><td>0:00:00</td></tr>
+</tbody></table></div>
+<div class="wrap"><table>
+<thead><tr><th>Location provider</th><th>Requested for</th><th>In background</th><th>Location fixes delivered</th></tr></thead>
+<tbody>
+<tr><td>gps</td><td>3:37:19</td><td>0:00:42</td><td>10596</td></tr>
+</tbody></table></div>
+<h4>WhatsApp (com.whatsapp)</h4><div class="wrap"><table>
+<thead><tr><th>Sensor</th><th>App was</th><th>Last used</th><th>For</th></tr></thead>
+<tbody>
+<tr><td>approximate location (COARSE_LOCATION)</td><td>open on screen</td><td>4 days ago</td><td>—</td></tr>
+<tr><td>precise location (FINE_LOCATION)</td><td>open on screen</td><td>2 days ago</td><td>—</td></tr>
+<tr><td>camera (CAMERA)</td><td>open on screen</td><td>yesterday</td><td>0:00:14</td></tr>
+<tr><td>microphone (RECORD_AUDIO)</td><td>open on screen</td><td>4 days ago</td><td>0:04:20</td></tr>
+</tbody></table></div>
+</details>
+<details id="appendix-jobs"><summary><strong>Background jobs</strong></summary>
+<p>The full job lists behind the background-work findings.</p>
+<h4>Shared job libraries</h4><p>Job names that several apps schedule because they come from the same library. Each is listed once here; the apps&#39; tables label them with it.</p><div class="wrap"><table>
+<thead><tr><th>Library</th><th>Job</th><th>Apps</th><th>Used by</th></tr></thead>
+<tbody>
+<tr><td>a library several apps share</td><td>SimCarrierInfoLogWorker</td><td>2</td><td>Facebook, Messenger</td></tr>
+</tbody></table></div>
+<h4>Facebook (com.facebook.katana)</h4><p>has 14 background jobs that can run without charging, the phone being idle or Wi-Fi, including IdentityHashWorker, OfflineFeedBackgroundPrefetchWorker, NotificationsPermissionWorker and 11 more.</p><details><summary>14 rows</summary><div class="wrap"><table>
+<thead><tr><th>Job</th><th>Waits only for</th></tr></thead>
+<tbody>
+<tr><td>IdentityHashWorker</td><td>any network</td></tr>
+<tr><td>OfflineFeedBackgroundPrefetchWorker</td><td>any network</td></tr>
+<tr><td>NotificationsPermissionWorker</td><td>—</td></tr>
+<tr><td>StoryTrayPredictionPrefetchWorker</td><td>any network</td></tr>
+<tr><td>MediaCountUploadWorker</td><td>any network</td></tr>
+<tr><td>FeedAdsChannelBackgroundPrefetchWorker</td><td>any network</td></tr>
+<tr><td>FeedBackgroundPrefetchWorker</td><td>any network</td></tr>
+<tr><td>a library several apps share: SimCarrierInfoLogWorker</td><td>any network</td></tr>
+<tr><td>OnDeviceDerivedAppHistoryWorker</td><td>any network</td></tr>
+<tr><td>FFJobService</td><td>a deadline, any network</td></tr>
+<tr><td>FBPapayaJobService</td><td>any network</td></tr>
+<tr><td>LollipopConditionalWorkerService</td><td>any network</td></tr>
+<tr><td>PushNegativeFeedbackLollipopService</td><td>any network</td></tr>
+<tr><td>UpdateLocalMediaStoreJobService</td><td>—</td></tr>
+</tbody></table></div>
+</details><p class="evidence">Evidence: dumpsys-jobscheduler.txt: lines 679-716, 717-754, 755-790, 872-909, 910-947, 948-985, 986-1023, 1024-1061 and 6 more</p><h4>Messenger (com.facebook.orca)</h4><p>has 3 background jobs that can run without charging, the phone being idle or Wi-Fi: EarlyAccessSyncWorker, SimCarrierInfoLogWorker and LollipopUploadService.</p><div class="wrap"><table>
+<thead><tr><th>Job</th><th>Waits only for</th></tr></thead>
+<tbody>
+<tr><td>EarlyAccessSyncWorker</td><td>any network</td></tr>
+<tr><td>a library several apps share: SimCarrierInfoLogWorker</td><td>any network</td></tr>
+<tr><td>LollipopUploadService</td><td>a deadline, any network</td></tr>
+</tbody></table></div>
+<p class="evidence">Evidence: dumpsys-jobscheduler.txt: lines 548-590, 591-633, 634-678</p><h4>Google Maps (com.google.android.apps.maps)</h4><p>has 1 background job that can run without charging, the phone being idle or Wi-Fi: GmmWorkerWrapper.</p><div class="wrap"><table>
+<thead><tr><th>Job</th></tr></thead>
+<tbody>
+<tr><td>GmmWorkerWrapper</td></tr>
+</tbody></table></div>
+<p class="evidence">Evidence: dumpsys-jobscheduler.txt: lines 512-547</p></details>
+<details id="appendix-system"><summary><strong>System components</strong></summary>
+<p>Every finding about platform components, at the lowest level of its scale.</p>
+<h4>Android system (android): Recent use of location, camera and microphone</h4><p>asked for location updates.</p><div class="wrap"><table>
+<thead><tr><th>Location provider</th><th>Requested for</th><th>In background</th><th>Location fixes delivered</th></tr></thead>
+<tbody>
+<tr><td>passive</td><td>1 day, 11:20:01</td><td>0:00:00</td><td>1</td></tr>
+<tr><td>passive</td><td>1 day, 11:20:01</td><td>0:00:00</td><td>1</td></tr>
+<tr><td>passive</td><td>0:00:06</td><td>0:00:00</td><td>2</td></tr>
+<tr><td>gps</td><td>0:00:30</td><td>0:00:00</td><td>1</td></tr>
+<tr><td>fused</td><td>1 day, 11:20:01</td><td>0:00:00</td><td>68</td></tr>
+<tr><td>network</td><td>1 day, 11:20:02</td><td>0:00:00</td><td>2682</td></tr>
+</tbody></table></div>
+<p class="evidence">Evidence: dumpsys-location.txt: lines 100, 101, 103, 107, 113, 117</p><h4>Android system (android): Recent use of location, camera and microphone</h4><p>holds 1 location request that Android keeps out of the permission history, so Settings doesn&#39;t show them.</p><div class="wrap"><table>
+<thead><tr><th>Provider</th><th>Requested as</th></tr></thead>
+<tbody>
+<tr><td>network</td><td>GnssService</td></tr>
+</tbody></table></div>
+<p class="evidence">Evidence: dumpsys-location.txt: line 34</p><h4>Android system (android): Background work that can run at any time</h4><p>has 1 background job that can run without charging, the phone being idle or Wi-Fi: ReportWidgetEventsJob.</p><div class="wrap"><table>
+<thead><tr><th>Job</th><th>Waits only for</th><th>Repeats every</th></tr></thead>
+<tbody>
+<tr><td>ReportWidgetEventsJob</td><td>a deadline</td><td>1:00:00</td></tr>
+</tbody></table></div>
+<p class="evidence">Evidence: dumpsys-jobscheduler.txt: lines 261-297</p><h4>Android System Intelligence (com.google.android.as, secondary UID 30168): Used a sensor while not on screen</h4><p>used your precise location while it wasn&#39;t on screen (from a foreground service), and Android allowed it.</p><div class="wrap"><table>
+<thead><tr><th>Sensor</th><th>Setting</th><th>Used while</th><th>Last used</th></tr></thead>
+<tbody>
+<tr><td>precise location (FINE_LOCATION)</td><td>at any time</td><td>foreground service</td><td>yesterday</td></tr>
+</tbody></table></div>
+<p class="evidence">Evidence: dumpsys-appops.txt: line 1357</p><h4>Android System Intelligence (com.google.android.as): Sensitive access each app is allowed</h4><p>is allowed 7 of the 9 kinds of sensitive access appopsy checks: your precise location, contacts, call log, text messages, photos and videos at any time; the camera and the microphone only while it&#39;s in use. It ranks 1 of 1 system components.</p><div class="wrap"><table>
+<thead><tr><th>Allowed</th><th>When</th><th>Scope</th></tr></thead>
+<tbody>
+<tr><td>Location (FINE_LOCATION, COARSE_LOCATION)</td><td>at any time</td><td>precise</td></tr>
+<tr><td>Camera (CAMERA)</td><td>only while in use</td><td>—</td></tr>
+<tr><td>Microphone (RECORD_AUDIO)</td><td>only while in use</td><td>—</td></tr>
+<tr><td>Contacts (READ_CONTACTS)</td><td>at any time</td><td>—</td></tr>
+<tr><td>Call log (READ_CALL_LOG)</td><td>at any time</td><td>—</td></tr>
+<tr><td>Text messages (READ_SMS)</td><td>at any time</td><td>—</td></tr>
+<tr><td>Photos and videos (READ_MEDIA_IMAGES, READ_MEDIA_VIDEO)</td><td>at any time</td><td>whole library</td></tr>
+</tbody></table></div>
+<p class="evidence">Evidence: dumpsys-appops.txt: lines 121, 122, 151, 152, 157, 163, 168, 176 and 2 more</p><h4>Android System Intelligence (com.google.android.as): Recent use of location, camera and microphone</h4><p>used your precise location, plus the microphone, and asked for location updates.</p><div class="wrap"><table>
+<thead><tr><th>Sensor</th><th>App was</th><th>Last used</th></tr></thead>
+<tbody>
+<tr><td>precise location (FINE_LOCATION)</td><td>open on screen</td><td>14 days ago</td></tr>
+<tr><td>precise location (FINE_LOCATION)</td><td>in the foreground</td><td>3 days ago</td></tr>
+<tr><td>microphone (RECORD_AUDIO)</td><td>in the foreground</td><td>4 days ago</td></tr>
+<tr><td>precise location (FINE_LOCATION)</td><td>open on screen</td><td>2 days ago</td></tr>
+<tr><td>precise location (FINE_LOCATION)</td><td>foreground service</td><td>yesterday</td></tr>
+<tr><td>precise location (FINE_LOCATION)</td><td>in the foreground</td><td>yesterday</td></tr>
+</tbody></table></div>
+<div class="wrap"><table>
+<thead><tr><th>Location provider</th><th>Requested for</th><th>In background</th><th>Location fixes delivered</th></tr></thead>
+<tbody>
+<tr><td>network</td><td>1 day, 11:19:57</td><td>0:00:00</td><td>1</td></tr>
+</tbody></table></div>
+<p class="evidence">Evidence: dumpsys-appops.txt: lines 154, 155, 178, 1356, 1357, 1358; dumpsys-location.txt: line 118</p><h4>Android System Intelligence (com.google.android.as): Background work that can run at any time</h4><p>has 1 background job that can run without charging, the phone being idle or Wi-Fi: PeriodicCleanupService.</p><div class="wrap"><table>
+<thead><tr><th>Job</th><th>Waits only for</th><th>Repeats every</th></tr></thead>
+<tbody>
+<tr><td>PeriodicCleanupService</td><td>a deadline</td><td>1 day, 0:00:00</td></tr>
+</tbody></table></div>
+<p class="evidence">Evidence: dumpsys-jobscheduler.txt: lines 341-382</p><h4>com.android.imsstack: Recent use of location, camera and microphone</h4><p>asked for location updates.</p><div class="wrap"><table>
+<thead><tr><th>Location provider</th><th>Requested for</th><th>In background</th><th>Location fixes delivered</th></tr></thead>
+<tbody>
+<tr><td>fused</td><td>0:00:06</td><td>0:00:00</td><td>6</td></tr>
+</tbody></table></div>
+<p class="evidence">Evidence: dumpsys-location.txt: line 112</p><h4>Fused location provider (com.android.location.fused): Recent use of location, camera and microphone</h4><p>asked for location updates.</p><div class="wrap"><table>
+<thead><tr><th>Location provider</th><th>Requested for</th><th>In background</th><th>Location fixes delivered</th></tr></thead>
+<tbody>
+<tr><td>gps</td><td>0:00:01</td><td>0:00:00</td><td>0</td></tr>
+<tr><td>network</td><td>0:00:01</td><td>0:00:00</td><td>0</td></tr>
+</tbody></table></div>
+<p class="evidence">Evidence: dumpsys-location.txt: lines 106, 116</p><h4>Google Play services (com.google.android.gms): Wakes the phone often</h4><p>woke the phone 1018 times in 35.3 hours, 28.8 times an hour on average (the threshold is 10).</p><div class="wrap"><table>
+<thead><tr><th>Alarm</th><th>Wake-ups</th></tr></thead>
+<tbody>
+<tr><td>*walarm*:NetworkLocationActivityDetection</td><td>523</td></tr>
+<tr><td>*walarm*:com.google.android.gms.gcm.HEARTBEAT_ALARM</td><td>118</td></tr>
+<tr><td>*walarm*:NetworkLocationScanner</td><td>90</td></tr>
+<tr><td>*walarm*:FusedLocation:expire</td><td>72</td></tr>
+<tr><td>*walarm*:FusedLocation:delay_request</td><td>67</td></tr>
+</tbody></table></div>
+<p class="evidence">Evidence: dumpsys-alarm.txt: lines 732-800</p><h4>Google Play services (com.google.android.gms): Recent use of location, camera and microphone</h4><p>asked for location updates.</p><div class="wrap"><table>
+<thead><tr><th>Location provider</th><th>Requested for</th><th>In background</th><th>Location fixes delivered</th></tr></thead>
+<tbody>
+<tr><td>passive</td><td>1 day, 11:19:58</td><td>0:00:00</td><td>83808</td></tr>
+<tr><td>passive</td><td>22:57:37</td><td>0:00:00</td><td>8851</td></tr>
+<tr><td>gps</td><td>3:51:58</td><td>0:00:00</td><td>10925</td></tr>
+<tr><td>gps</td><td>0:02:48</td><td>0:00:00</td><td>139</td></tr>
+<tr><td>gps</td><td>3:33:56</td><td>0:00:00</td><td>10853</td></tr>
+</tbody></table></div>
+<p class="evidence">Evidence: dumpsys-location.txt: lines 99, 102, 105, 108, 109</p><h4>Google Play services (com.google.android.gms): Recent use of location, camera and microphone</h4><p>holds 3 location requests that Android keeps out of the permission history, so Settings doesn&#39;t show them.</p><div class="wrap"><table>
+<thead><tr><th>Provider</th><th>Requested as</th></tr></thead>
+<tbody>
+<tr><td>passive</td><td>network_location_provider</td></tr>
+<tr><td>passive</td><td>fused_location_provider</td></tr>
+<tr><td>passive</td><td>fused_location_provider</td></tr>
+</tbody></table></div>
+<p class="evidence">Evidence: dumpsys-location.txt: lines 21, 24, 25</p><h4>Phone services (com.android.phone): Recent use of location, camera and microphone</h4><p>asked for location updates.</p><div class="wrap"><table>
+<thead><tr><th>Location provider</th><th>Requested for</th><th>In background</th><th>Location fixes delivered</th></tr></thead>
+<tbody>
+<tr><td>fused</td><td>0:00:04</td><td>0:00:00</td><td>1</td></tr>
+</tbody></table></div>
+<p class="evidence">Evidence: dumpsys-location.txt: line 114</p></details>
+</main>
+</body>
+</html>
