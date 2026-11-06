@@ -370,13 +370,6 @@ def _sort_key(f: Finding) -> tuple[int, str]:
 # --- prose built from several findings: headline and app-specific actions --------
 
 
-def _ops_phrase(ops: set[str]) -> str:
-    """ "your location" whether precise, approximate or both: for headlines."""
-    if ops and ops <= LOCATION_OPS:
-        return "your location"
-    return access_phrase(ops)
-
-
 def _any_time(f: Finding) -> list[tuple[str, str]]:
     """(category, scope) an app may use at any time: data and sensors, not running in
     the background, and not selected photos only (the privacy-friendly choice)."""
@@ -397,51 +390,145 @@ def _category_of(op: str) -> str | None:
     return next((c.key for c in ACCESS_CATEGORIES if op in c.ops), None)
 
 
-def _headline_attempts(fs: list[Finding], case: CaseData) -> list[str]:
-    names = sorted(app_name(f.package or "") for f in fs)
-    attempts = [a for f in fs for a in f.facts["attempts"]]
-    ops = {a["op"] for a in attempts}
-    verb = "were" if len(fs) > 1 else "was"
-    why = (
-        "your settings allow it only while the app is in use"
-        if all(a["mode"] == "foreground" for a in attempts)
-        else "your settings don't allow it"
-    )
-    return [
-        f"{join(names)} tried to use {_ops_phrase(ops)} in the background and {verb} "
-        f"refused, because {why}."
-    ]
+# Headline: one sentence per kind of finding, most severe first. A kind is a rule,
+# and for the sensor rules also the sensor (and for camera and microphone, whether
+# the use was visible): different sensors are never merged into one clause, so a
+# sentence can't suggest that apps used a sensor only one of them did.
+SENSOR_KINDS = (  # (key, ops, phrase), in headline order
+    ("microphone", frozenset({"RECORD_AUDIO"}), "the microphone"),
+    ("camera", frozenset({"CAMERA"}), "the camera"),
+    ("location", LOCATION_OPS, "your location"),
+    ("body_sensors", frozenset({"BODY_SENSORS"}), "body sensors"),
+)
+RULE_ORDER = (
+    "background-sensor-use",
+    "background-sensor-attempt",
+    "chatty-wakeups",
+    "unconstrained-background-work",
+    "over-privileged-app",
+)
+MAX_NAMED = 3
 
 
-def _headline_jobs(fs: list[Finding], case: CaseData) -> list[str]:
+@dataclass
+class _Line:
+    severity: str
+    order: tuple[int, int, int]  # rule, sensor, variant
+    text: str
+
+
+def _apps(names: list[str]) -> tuple[str, bool]:
+    """ "A, B, C and 5 more" (at most three named) and whether it's plural."""
+    names = sorted(names, key=str.lower)
+    return sample(names, MAX_NAMED), len(names) > 1
+
+
+def _by_sensor(
+    fs: list[Finding], ops_of: Callable[[Finding], set[str]]
+) -> list[tuple[int, str, list[Finding]]]:
+    """(sensor index, phrase, findings) for each sensor kind some finding involves."""
+    out = []
+    for i, (_, ops, phrase) in enumerate(SENSOR_KINDS):
+        group = [f for f in fs if ops_of(f) & ops]
+        if group:
+            out.append((i, phrase, group))
+    return out
+
+
+def _headline_background_use(fs: list[Finding], case: CaseData) -> list[_Line]:
+    rule = RULE_ORDER.index("background-sensor-use")
+    lines = []
+
+    def uses(f: Finding, ops: frozenset[str]) -> list[dict[str, Any]]:
+        return [u for u in f.facts["uses"] if u["op"] in ops]
+
+    for i, (key, ops, phrase) in enumerate(SENSOR_KINDS):
+        group = [f for f in fs if uses(f, ops)]
+        if not group:
+            continue
+        if key in ("microphone", "camera"):
+            hidden = [
+                f for f in group if any(set(u["states"]) & {"bg", "cch"} for u in uses(f, ops))
+            ]
+            visible = [f for f in group if f not in hidden]
+            if hidden:
+                apps, _ = _apps([app_name(f.package or "") for f in hidden])
+                lines.append(_Line(
+                    "concern", (rule, i, 0),
+                    f"{apps} used {phrase} in the background, where nothing on screen shows it.",
+                ))  # fmt: skip
+            if visible:
+                apps, _ = _apps([app_name(f.package or "") for f in visible])
+                lines.append(_Line(
+                    "notable", (rule, i, 1),
+                    f"{apps} used {phrase} from a foreground service, which shows a "
+                    "notification while it runs.",
+                ))  # fmt: skip
+        else:
+            apps, _ = _apps([app_name(f.package or "") for f in group])
+            received = "body-sensor data" if key == "body_sensors" else phrase
+            lines.append(_Line(
+                "notable", (rule, i, 0), f"{apps} received {received} while not on screen."
+            ))  # fmt: skip
+    return lines
+
+
+def _headline_attempts(fs: list[Finding], case: CaseData) -> list[_Line]:
+    rule = RULE_ORDER.index("background-sensor-attempt")
+    lines = []
+    for i, phrase, group in _by_sensor(fs, lambda f: {a["op"] for a in f.facts["attempts"]}):
+        ops = SENSOR_KINDS[i][1]
+        attempts = [a for f in group for a in f.facts["attempts"] if a["op"] in ops]
+        apps, plural = _apps([app_name(f.package or "") for f in group])
+        why = (
+            "your settings allow it only while the app is in use"
+            if all(a["mode"] == "foreground" for a in attempts)
+            else "your settings don't allow it"
+        )
+        verb = "were" if plural else "was"
+        lines.append(_Line(
+            group[0].severity, (rule, i, 0),
+            f"{apps} tried to use {phrase} in the background and {verb} refused, because {why}.",
+        ))  # fmt: skip
+    return lines
+
+
+def _headline_wakeups(fs: list[Finding], case: CaseData) -> list[_Line]:
+    apps, _ = _apps([app_name(f.package or "") for f in fs])
+    limit = fs[0].facts["threshold"]
+    return [_Line(
+        fs[0].severity, (RULE_ORDER.index("chatty-wakeups"), 0, 0),
+        f"{apps} woke the phone more than {limit:g} times an hour on average.",
+    )]  # fmt: skip
+
+
+def _headline_jobs(fs: list[Finding], case: CaseData) -> list[_Line]:
     # Apps that came with the phone are info here: not headline material.
     fs = sorted((f for f in fs if f.severity != "info"), key=lambda f: -len(f.facts["jobs"]))
     if not fs:
         return []
     counts = [(app_name(f.package or ""), len(f.facts["jobs"])) for f in fs]
+    total = sum(n for _, n in counts)
+    order = (RULE_ORDER.index("unconstrained-background-work"), 0, 0)
     if len(counts) == 1:
         name, n = counts[0]
         jobs = "job" if n == 1 else "jobs"
-        return [f"{name} has {n} background {jobs} that can run on battery and mobile data "
-                "at any time."]  # fmt: skip
-    listed = join([f"{name} ({n})" for name, n in counts])
-    total = sum(n for _, n in counts)
-    return [f"{listed} have background jobs that can run on battery and mobile data at any "
-            f"time, {total} in all."]  # fmt: skip
+        return [_Line(fs[0].severity, order, f"{name} has {n} background {jobs} that can run on "
+                      "battery and mobile data at any time.")]  # fmt: skip
+    named = [f"{name} ({n})" for name, n in counts[:MAX_NAMED]]
+    more = len(counts) - len(named)
+    listed = f"{', '.join(named)} and {more} more apps" if more else join(named)
+    return [_Line(fs[0].severity, order, f"{listed} have background jobs that can run on "
+                  f"battery and mobile data at any time, {total} in all.")]  # fmt: skip
 
 
-def _headline_wakeups(fs: list[Finding], case: CaseData) -> list[str]:
-    names = join([app_name(f.package or "") for f in fs])
-    limit = fs[0].facts["threshold"]
-    return [f"{names} woke the phone more than {limit:g} times an hour on average."]
-
-
-def _headline_access(fs: list[Finding], case: CaseData) -> list[str]:
+def _headline_access(fs: list[Finding], case: CaseData) -> list[_Line]:
     """The widest-access app, and the widest of the other kind (installed or came with
     the phone), so access a preinstalled app has isn't hidden behind installed ones."""
     ranked = sorted((f for f in fs if f.facts["count"]), key=lambda f: f.facts["rank"])
     if not ranked:
         return []
+    rule = RULE_ORDER.index("over-privileged-app")
     top = ranked[0]
     top_kind = case.classify(top.package or "")
     name = app_name(top.package or "")
@@ -452,9 +539,8 @@ def _headline_access(fs: list[Finding], case: CaseData) -> list[str]:
         f"{top.facts['checked']} kinds of sensitive access appopsy checks"
     )
     any_time = _any_time(top)
-    out = [
-        sentence + (f", including {category_phrase(any_time)} at any time." if any_time else ".")
-    ]
+    text = sentence + (f", including {category_phrase(any_time)} at any time." if any_time else ".")
+    out = [_Line(top.severity, (rule, 0, 0), text)]
     others = [f for f in ranked[1:] if case.classify(f.package or "") != top_kind and _any_time(f)]
     if others:
         other = others[0]
@@ -462,36 +548,30 @@ def _headline_access(fs: list[Finding], case: CaseData) -> list[str]:
             lead = f"Of the apps you installed, {app_name(other.package or '')}"
         else:
             lead = f"{app_name(other.package or '')}, which came with the phone,"
-        out.append(f"{lead} can use {category_phrase(_any_time(other))} at any time.")
+        text = f"{lead} can use {category_phrase(_any_time(other))} at any time."
+        out.append(_Line(other.severity, (rule, 0, 1), text))
     return out
 
 
-def _headline_background_use(fs: list[Finding], case: CaseData) -> list[str]:
-    fs = sorted(fs, key=lambda f: (_SEVERITY_ORDER[f.severity], app_name(f.package or "")))
-    names = join([app_name(f.package or "") for f in fs])
-    ops = {u["op"] for f in fs for u in f.facts["uses"]}
-    return [f"{names} used {access_phrase(ops)} while not on screen, and Android allowed it."]
-
-
-HEADLINES: dict[str, Callable[[list[Finding], CaseData], list[str]]] = {
+HEADLINES: dict[str, Callable[[list[Finding], CaseData], list[_Line]]] = {
     "background-sensor-use": _headline_background_use,
     "background-sensor-attempt": _headline_attempts,
-    "unconstrained-background-work": _headline_jobs,
     "chatty-wakeups": _headline_wakeups,
+    "unconstrained-background-work": _headline_jobs,
     "over-privileged-app": _headline_access,
 }
 
 
 def headline(case: CaseData, main: list[Finding]) -> list[str]:
-    """3-4 plain sentences on the most important findings, most severe rules first."""
+    """Up to MAX_HEADLINE sentences, one per kind of finding, concern first."""
     by_rule: dict[str, list[Finding]] = defaultdict(list)
     for f in main:
         by_rule[f.rule_id].append(f)
-    rules = sorted(by_rule, key=lambda r: (min(_SEVERITY_ORDER[f.severity] for f in by_rule[r]), r))
-    sentences = [s for r in rules if r in HEADLINES for s in HEADLINES[r](by_rule[r], case)]
-    if not sentences:
+    lines = [line for r, fs in by_rule.items() if r in HEADLINES for line in HEADLINES[r](fs, case)]
+    lines.sort(key=lambda line: (_SEVERITY_ORDER[line.severity], line.order))
+    if not lines:
         return ["Nothing stood out about the apps on this phone."]
-    return sentences[:MAX_HEADLINE]
+    return [line.text for line in lines[:MAX_HEADLINE]]
 
 
 # Permission names as Settings shows them, and the step that narrows each one.

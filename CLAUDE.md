@@ -176,6 +176,11 @@ rationale, benign_explanations, remediation):
    the privacy indicator while a foreground service uses them; e.g. the Google app).
    A spec may declare extra `severities:` its function picks per finding.
 
+Headline (`build.headline`): one sentence per kind of finding, concern first,
+naming at most three apps then "and N more". The sensor rules split by sensor
+(and camera/microphone by visible vs background use), so different sensors are
+never merged across apps in one clause.
+
 Report rules: every "What you can do" app line gives a concrete step (a Settings
 path) or is omitted, and never suggests narrowing an app's core-function access
 (`core:` in `appopsy/report/apps.yaml`, e.g. Phone: contacts, call log).
@@ -359,6 +364,11 @@ fixture too, so the redactor knows every app even if the input lacks a `pm list`
 
 ## Working style
 
+- **Never push to `main`.** It is protected (pull requests and CI required, no
+  force pushes). Work on one branch per task, push the branch (the pre-push hook
+  still runs), open a PR with `gh pr create`, and the maintainer merges. Updates
+  to `appopsy/report/app_names.tsv` only ever land through a PR that shows the diff.
+- Every commit ends with the `Co-Authored-By:` trailer.
 - The git hooks in `.githooks/` enforce the commit discipline (install:
   `git config core.hooksPath .githooks`). pre-commit checks the staged tree with
   ruff, mypy and pytest; pre-push runs both third-party checks on every commit
