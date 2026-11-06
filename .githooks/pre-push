@@ -12,6 +12,15 @@ if [ ! -x "$appopsy" ]; then
     echo "pre-push: $appopsy not found; run 'uv sync' first." >&2
     exit 1
 fi
+broken() {  # $1: the command that couldn't run, $2: its output
+    echo "pre-push: the Python environment in $repo/.venv is broken; the checks can't run." >&2
+    echo "  $1 failed with:" >&2
+    printf '%s\n' "$2" | sed 's/^/    /' >&2
+    echo "  Fix it with 'uv sync' (or remove .venv and run 'uv sync'). Nothing was pushed." >&2
+    exit 1
+}
+out=$("$repo/.venv/bin/python" -c "import appopsy" 2>&1) || broken "$repo/.venv/bin/python" "$out"
+out=$("$appopsy" --version 2>&1) || broken "$appopsy --version" "$out"
 if [ ! -f "$list" ]; then
     echo "pre-push: no app list at $list, so the third-party checks can't run." >&2
     echo "Create it from a case folder: cp cases/<case>/raw/pm-list-packages-3p.txt $list" >&2
@@ -29,6 +38,17 @@ allowed = {a.name for a in DEFAULT_ALLOWLIST}
 print("\n".join(sorted(load_third_party_list(Path(sys.argv[1])) - allowed)))
 PY
 status=0
+check_result() {  # $1 exit code, $2 output, $3 check name, $4 message for a finding
+    if [ "$1" -eq 0 ]; then
+        return
+    fi
+    if [ "$1" -eq 1 ] && ! printf '%s' "$2" | grep -q "Traceback (most recent call last)"; then
+        echo "$4" >&2
+        status=1
+    else
+        broken "the $3 (exit $1)" "$2"
+    fi
+}
 while read -r local_ref local_sha remote_ref remote_sha; do
     [ "$local_sha" = "$zero" ] && continue  # deleting a ref: nothing to check
     if [ "$remote_sha" = "$zero" ]; then
@@ -41,12 +61,15 @@ while read -r local_ref local_sha remote_ref remote_sha; do
         mkdir -p "$dir"
         git archive "$c" | tar -x -C "$dir"
         short=$(git rev-parse --short "$c")
+        # Exit 1 with a report is a finding; anything else (or a traceback) means the
+        # checker itself didn't run, which is reported as such, not as a finding.
         if [ -d "$dir/tests/fixtures" ]; then
-            "$appopsy" redact-fixture --check --third-party-list "$list" "$dir/tests/fixtures" >/dev/null 2>&1 \
-                || { echo "pre-push: $short: fixture check failed (run it on tests/fixtures to see why)" >&2; status=1; }
+            code=0; out=$("$appopsy" redact-fixture --check --third-party-list "$list" "$dir/tests/fixtures" 2>&1) || code=$?
+            check_result "$code" "$out" "fixture check" \
+                "pre-push: $short: fixture check failed (run it on tests/fixtures to see why)"
         fi
-        "$appopsy" redact-fixture --check --apps-only --third-party-list "$list" "$dir" >/dev/null 2>&1 \
-            || { echo "pre-push: $short: one of your apps is named in the tree" >&2; status=1; }
+        code=0; out=$("$appopsy" redact-fixture --check --apps-only --third-party-list "$list" "$dir" 2>&1) || code=$?
+        check_result "$code" "$out" "apps-only check" "pre-push: $short: one of your apps is named in the tree"
         if [ -s "$tmp/names" ] && git log -1 --format=%B "$c" | grep -qFf "$tmp/names"; then
             echo "pre-push: $short: one of your apps is named in the commit message" >&2; status=1
         fi
