@@ -133,13 +133,21 @@ def broken_repo(tmp_path: Path) -> Path:
     return r
 
 
+def shell_error(stderr: str) -> bool:
+    """The shell's own error for the unrunnable tool, as each shell words it: macOS sh
+    says "bad interpreter: No such file or directory", dash (Linux) "<path>: not found"."""
+    return ".venv/bin/" in stderr and any(
+        s in stderr for s in ("bad interpreter", "No such file or directory", "not found")
+    )
+
+
 def test_pre_commit_reports_a_broken_environment(broken_repo: Path) -> None:
     result = subprocess.run(
         [str(HOOKS / "pre-commit")], cwd=broken_repo, capture_output=True, text=True
     )
     assert result.returncode == 1
     assert "environment" in result.stderr and "broken" in result.stderr
-    assert "nonexistent" in result.stderr or "interpreter" in result.stderr  # the real error
+    assert shell_error(result.stderr)  # the real error is shown
     assert "check failed" not in result.stderr
 
 
@@ -147,6 +155,6 @@ def test_pre_push_reports_a_broken_environment(broken_repo: Path, app_list: Path
     result = push_hook(broken_repo, app_list.parent, app_list)
     assert result.returncode == 1
     assert "environment" in result.stderr and "broken" in result.stderr
-    assert "nonexistent" in result.stderr or "interpreter" in result.stderr
+    assert shell_error(result.stderr)
     # Not mistaken for a finding.
     assert "named" not in result.stderr and "check failed" not in result.stderr
