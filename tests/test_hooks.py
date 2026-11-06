@@ -111,3 +111,42 @@ def test_pre_push_fails_closed_without_the_list(repo: Path, tmp_path: Path) -> N
     result = push_hook(repo, empty_home, None)
     assert result.returncode == 1
     assert "no app list" in result.stderr
+
+
+@pytest.fixture
+def broken_repo(tmp_path: Path) -> Path:
+    """A repo whose .venv exists but can't run: every tool points at an interpreter
+    that isn't there (what a moved or half-deleted virtualenv looks like)."""
+    r = tmp_path / "broken"
+    r.mkdir()
+    git(r, "init", "-q", "-b", "main")
+    bin_dir = r / ".venv" / "bin"
+    bin_dir.mkdir(parents=True)
+    for tool in ("python", "pytest", "ruff", "mypy", "appopsy"):
+        script = bin_dir / tool
+        script.write_text("#!/nonexistent/interpreter/python3\nprint('never runs')\n")
+        script.chmod(0o755)
+    (r / ".gitignore").write_text(".venv\n")
+    (r / "README.md").write_text("clean\n")
+    git(r, "add", "-A")
+    git(r, "commit", "-q", "--no-verify", "-m", "clean start")
+    return r
+
+
+def test_pre_commit_reports_a_broken_environment(broken_repo: Path) -> None:
+    result = subprocess.run(
+        [str(HOOKS / "pre-commit")], cwd=broken_repo, capture_output=True, text=True
+    )
+    assert result.returncode == 1
+    assert "environment" in result.stderr and "broken" in result.stderr
+    assert "nonexistent" in result.stderr or "interpreter" in result.stderr  # the real error
+    assert "check failed" not in result.stderr
+
+
+def test_pre_push_reports_a_broken_environment(broken_repo: Path, app_list: Path) -> None:
+    result = push_hook(broken_repo, app_list.parent, app_list)
+    assert result.returncode == 1
+    assert "environment" in result.stderr and "broken" in result.stderr
+    assert "nonexistent" in result.stderr or "interpreter" in result.stderr
+    # Not mistaken for a finding.
+    assert "named" not in result.stderr and "check failed" not in result.stderr

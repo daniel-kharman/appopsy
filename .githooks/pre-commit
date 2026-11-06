@@ -9,6 +9,20 @@ if [ ! -x "$bin/pytest" ]; then
     echo "pre-commit: $bin not found; run 'uv sync' first." >&2
     exit 1
 fi
+# The environment must be able to run the checkers at all. If it can't (a moved or
+# half-deleted .venv, a removed interpreter), say so with the real error rather
+# than letting it look like a failed check.
+env_check() {
+    if ! out=$("$@" 2>&1); then
+        echo "pre-commit: the Python environment in $repo/.venv is broken; the checks can't run." >&2
+        echo "  $* failed with:" >&2
+        printf '%s\n' "$out" | sed 's/^/    /' >&2
+        echo "  Fix it with 'uv sync' (or remove .venv and run 'uv sync')." >&2
+        exit 1
+    fi
+}
+env_check "$bin/python" -c "import appopsy, mypy, pytest"
+env_check "$bin/ruff" --version
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/appopsy-pre-commit.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT INT TERM
 git checkout-index --all --prefix="$tmp/"

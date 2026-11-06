@@ -31,3 +31,17 @@ jobs:
         run: uv run mypy
       - name: Tests
         run: uv run pytest
+
+  # One stable check for the branch ruleset: it passes only if every matrix run of
+  # `check` succeeded (a skipped or cancelled run counts as a failure).
+  ci-ok:
+    runs-on: ubuntu-latest
+    needs: check
+    if: always()
+    steps:
+      - name: All checks passed
+        env:
+          RESULT: ${{ needs.check.result }}
+        run: |
+          echo "check: $RESULT"
+          test "$RESULT" = "success"
