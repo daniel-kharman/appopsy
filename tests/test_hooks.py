@@ -158,3 +158,32 @@ def test_pre_push_reports_a_broken_environment(broken_repo: Path, app_list: Path
     assert shell_error(result.stderr)
     # Not mistaken for a finding.
     assert "named" not in result.stderr and "check failed" not in result.stderr
+
+
+@pytest.mark.parametrize(("verify_exit", "push_ok"), [(0, True), (1, False), (2, False)])
+def test_pre_push_verifies_a_changed_names_file(
+    repo: Path, app_list: Path, verify_exit: int, push_ok: bool
+) -> None:
+    """A commit that changes the Wikidata names file must pass --verify (a stub here,
+    so the test needs no network); exit 2 (Wikidata unreachable) also refuses."""
+    names = repo / "appopsy" / "report" / "app_names.tsv"
+    names.parent.mkdir(parents=True)
+    names.write_text("# not the real file\n")
+    script = repo / "scripts" / "update_app_names.py"
+    script.parent.mkdir()
+    script.write_text(f"import sys\nprint('stub verify')\nsys.exit({verify_exit})\n")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "--no-verify", "-m", "update names")
+    result = push_hook(repo, app_list.parent, app_list)
+    assert (result.returncode == 0) is push_ok, result.stderr
+    if not push_ok:
+        assert "didn't verify against Wikidata" in result.stderr and "stub verify" in result.stderr
+
+
+def test_pre_push_skips_verify_when_the_names_file_is_unchanged(repo: Path, app_list: Path) -> None:
+    script = repo / "scripts" / "update_app_names.py"
+    script.parent.mkdir()
+    script.write_text("import sys\nsys.exit(1)\n")  # would fail if it ran
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "--no-verify", "-m", "a script, no names file")
+    assert push_hook(repo, app_list.parent, app_list).returncode == 0

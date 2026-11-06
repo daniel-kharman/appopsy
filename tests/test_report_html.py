@@ -32,7 +32,10 @@ def test_self_contained_nothing_loaded_from_the_network(html: str) -> None:
         assert banned not in html, banned
     # Links appear only as threshold citations the reader can choose to follow.
     hrefs = [h for h in re.findall(r'href="([^"]+)"', html) if not h.startswith("#")]
-    assert hrefs == ["https://support.google.com/googleplay/android-developer/answer/7385505"]
+    assert hrefs == [
+        "https://support.google.com/googleplay/android-developer/answer/7385505",
+        "https://www.wikidata.org",  # the names credit
+    ]
     assert '<meta name="referrer" content="no-referrer">' in html
 
 

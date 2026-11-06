@@ -262,6 +262,9 @@ Each finding in full: [appendix](#system-components-1).
 Evidence gives line numbers in the files of the case folder's `raw/` directory,
 which hold the phone's output exactly as collected.
 
+App names for widely used apps come from [Wikidata](https://www.wikidata.org)
+(CC0, public domain), through its "Google Play Store app ID" property.
+
 ## Appendix
 
 ### Sensitive access at any time

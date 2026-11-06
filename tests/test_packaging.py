@@ -33,3 +33,4 @@ def test_wheel_includes_rule_specs_and_templates(tmp_path: Path) -> None:
     assert specs and specs <= names, sorted(specs - names)
     assert any(n.endswith(".yaml") for n in specs)
     assert "appopsy/report/templates/report.md.j2" in names
+    assert "appopsy/report/app_names.tsv" in names

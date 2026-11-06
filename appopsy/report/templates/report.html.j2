@@ -204,6 +204,8 @@ checked {{ t.source.checked }}, {{ "verified" if t.source.verified else "not ver
 </ul>
 <p class="muted">Evidence gives line numbers in the files of the case folder's
 <code>raw/</code> directory, which hold the phone's output exactly as collected.
+App names for widely used apps come from <a href="https://www.wikidata.org" rel="noreferrer">Wikidata</a>
+(CC0, public domain), through its "Google Play Store app ID" property.
 {% if r.warnings %}appopsy could not read {{ r.warnings }} line(s) of that output; those parts
 are missing from the findings above.{% endif %}</p>
 {% if r.appendix %}
