@@ -37,6 +37,7 @@ from appopsy.labels import (
 )
 from appopsy.parsers.appops import UidRole
 from appopsy.parsers.getprop import DeviceInfo
+from appopsy.report import app_names
 from appopsy.report.redaction import HIDDEN, HIDDEN_COLUMNS, Redaction
 from appopsy.rules.case import CaseData
 from appopsy.rules.engine import SEVERITIES, EvidenceRef, Finding, RuleSpec
@@ -76,18 +77,24 @@ def _alias(package: str) -> str | None:
     return redaction.aliases.get(package) if redaction else None
 
 
+def _friendly(package: str) -> str | None:
+    """apps.yaml first (curated), then the Wikidata names file; display only."""
+    curated = known_apps().get(package, {}).get("name")
+    return str(curated) if curated else app_names.names().get(package)
+
+
 def app_name(package: str) -> str:
     """Friendly name, or the package name when the app isn't a well-known one."""
     if alias := _alias(package):
         return alias
-    return str(known_apps().get(package, {}).get("name", package))
+    return _friendly(package) or package
 
 
 def app_label(package: str, extra: str | None = None) -> str:
     """ "Facebook (com.facebook.katana)"; unknown apps by package alone."""
     if alias := _alias(package):
         return alias
-    name = known_apps().get(package, {}).get("name")
+    name = _friendly(package)
     inner = ", ".join(x for x in (package if name else None, extra) if x)
     shown = name or package
     return f"{shown} ({inner})" if inner else shown

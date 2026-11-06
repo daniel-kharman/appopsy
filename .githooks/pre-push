@@ -70,6 +70,21 @@ while read -r local_ref local_sha remote_ref remote_sha; do
         fi
         code=0; out=$("$appopsy" redact-fixture --check --apps-only --third-party-list "$list" "$dir" 2>&1) || code=$?
         check_result "$code" "$out" "apps-only check" "pre-push: $short: one of your apps is named in the tree"
+        # The Wikidata names file is exempt from the apps check only because it is
+        # the whole public set: any commit that changes it must verify against
+        # Wikidata (every row there, at least 95% of a fresh generation), or the
+        # push is refused, offline included.
+        names_file="appopsy/report/app_names.tsv"
+        if git diff-tree --root --no-commit-id --name-only -r "$c" | grep -qxF "$names_file" \
+            && [ -f "$dir/$names_file" ]; then
+            code=0
+            out=$("$repo/.venv/bin/python" "$dir/scripts/update_app_names.py" --verify "$dir/$names_file" 2>&1) || code=$?
+            if [ "$code" -ne 0 ]; then
+                echo "pre-push: $short: the app names file didn't verify against Wikidata (exit $code):" >&2
+                printf '%s\n' "$out" | sed 's/^/    /' >&2
+                status=1
+            fi
+        fi
         if [ -s "$tmp/names" ] && git log -1 --format=%B "$c" | grep -qFf "$tmp/names"; then
             echo "pre-push: $short: one of your apps is named in the commit message" >&2; status=1
         fi
