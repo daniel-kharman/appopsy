@@ -364,6 +364,11 @@ fixture too, so the redactor knows every app even if the input lacks a `pm list`
 
 ## Working style
 
+- **Never push to `main`.** It is protected (pull requests and CI required, no
+  force pushes). Work on one branch per task, push the branch (the pre-push hook
+  still runs), open a PR with `gh pr create`, and the maintainer merges. Updates
+  to `appopsy/report/app_names.tsv` only ever land through a PR that shows the diff.
+- Every commit ends with the `Co-Authored-By:` trailer.
 - The git hooks in `.githooks/` enforce the commit discipline (install:
   `git config core.hooksPath .githooks`). pre-commit checks the staged tree with
   ruff, mypy and pytest; pre-push runs both third-party checks on every commit
