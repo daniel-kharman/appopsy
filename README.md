@@ -78,7 +78,7 @@ appopsy report tests/fixtures/17-google/capture-5 --redact -o docs/sample-report
 
 It opens with a short headline:
 
-> Facebook, WeChat and WhatsApp tried to use your location in the background and were refused, because your settings allow it only while the app is in use. Google Maps used your precise location while not on screen, and Android allowed it. Facebook (14) and Messenger (3) have background jobs that can run on battery and mobile data at any time, 17 in all. Google Maps, which came with the phone, has the broadest access: 6 of the 9 kinds of sensitive access appopsy checks, including your precise location, contacts, photos and videos at any time.
+> Google Maps received your location while not on screen. Facebook, WeChat and WhatsApp tried to use your location in the background and were refused, because your settings allow it only while the app is in use. Facebook (14) and Messenger (3) have background jobs that can run on battery and mobile data at any time, 17 in all. Google Maps, which came with the phone, has the broadest access: 6 of the 9 kinds of sensitive access appopsy checks, including your precise location, contacts, photos and videos at any time.
 
 then a summary, the findings (each with what it means, why it matters, what's
 probably harmless and the raw lines it rests on; long groups as one table), a line

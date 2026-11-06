@@ -176,6 +176,11 @@ rationale, benign_explanations, remediation):
    the privacy indicator while a foreground service uses them; e.g. the Google app).
    A spec may declare extra `severities:` its function picks per finding.
 
+Headline (`build.headline`): one sentence per kind of finding, concern first,
+naming at most three apps then "and N more". The sensor rules split by sensor
+(and camera/microphone by visible vs background use), so different sensors are
+never merged across apps in one clause.
+
 Report rules: every "What you can do" app line gives a concrete step (a Settings
 path) or is omitted, and never suggests narrowing an app's core-function access
 (`core:` in `appopsy/report/apps.yaml`, e.g. Phone: contacts, call log).

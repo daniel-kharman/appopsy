@@ -67,11 +67,11 @@ def test_sections_in_order(report: str) -> None:
 
 def test_headline_comes_first_and_names_the_main_findings(report: str) -> None:
     top = report[: report.index("\n## Summary\n")]
-    (headline,) = [p for p in top.split("\n\n") if p.startswith("Facebook, WeChat")]
+    (headline,) = [p for p in top.split("\n\n") if p.startswith("Google Maps received")]
     assert 3 <= headline.count(". ") + 1 <= 4
     assert "tried to use your location in the background and were refused" in headline
     assert "Facebook (14) and Messenger (3) have background jobs" in headline  # not preinstalled
-    assert "Google Maps used your precise location while not on screen" in headline
+    assert "Google Maps received your location while not on screen." in headline
     assert "Google Maps, which came with the phone, has the broadest access: 6 of the 9" in headline
 
 
@@ -372,3 +372,65 @@ def test_readme_sample_report_is_current(name: str) -> None:
     expected = rendered.html if name.endswith(".html") else rendered.markdown
     committed = (Path(__file__).parent.parent / "docs" / name).read_text()
     assert committed == expected, f"docs/{name} is stale; regenerate it (see docstring)"
+
+
+def _use(package: str, op: str, states: list[str], severity: str) -> Finding:
+    (spec,) = [s for s in load_rules() if s.id == "background-sensor-use"]
+    return Finding(
+        rule_id=spec.id, pack="privacy", severity=severity, title=spec.title,
+        package=package, summary=f"{package} used something.",
+        facts={"uid": 10500, "uses": [
+            {"op": op, "mode": "allow", "states": states, "last": "2029-12-31 23:00:00"}
+        ]},
+    )  # fmt: skip
+
+
+def test_headline_scales_and_never_merges_sensors_across_apps() -> None:
+    """A second real phone: eight apps used location while not on screen, and only
+    one of them the microphone. The headline must not say the eight used the mic."""
+    case = CaseData(CAPTURES / "capture-5")
+    specs = load_rules(packs=("privacy",))
+    findings = [
+        _use(f"org.example.app{i}", "FINE_LOCATION", ["bg"], "notable") for i in range(1, 9)
+    ]
+    findings.append(_use("org.example.recorder", "RECORD_AUDIO", ["cch"], "concern"))
+    lines = build_report(case, specs, findings).headline
+    assert lines[0] == (  # concern first, naming only the app that used it
+        "org.example.recorder used the microphone in the background, where nothing on screen "
+        "shows it."
+    )
+    assert lines[1] == (
+        "org.example.app1, org.example.app2, org.example.app3 and 5 more received your "
+        "location while not on screen."
+    )
+    for line in lines:
+        assert not ("microphone" in line and "location" in line), line
+    # A foreground-service microphone use is its own, notable sentence.
+    findings.append(_use("org.example.caller", "RECORD_AUDIO", ["fgsvc"], "notable"))
+    lines = build_report(case, specs, findings).headline
+    assert "org.example.caller used the microphone from a foreground service" in lines[1]
+    assert "org.example.caller" not in lines[0]
+
+
+def test_headline_attempts_are_one_sentence_per_sensor() -> None:
+    case = CaseData(CAPTURES / "capture-5")
+    (spec,) = [s for s in load_rules() if s.id == "background-sensor-attempt"]
+
+    def attempt(package: str, op: str) -> Finding:
+        return Finding(
+            rule_id=spec.id, pack="privacy", severity="notable", title=spec.title,
+            package=package, summary=f"{package} tried.",
+            facts={"uid": 10500, "attempts": [{"op": op, "mode": "foreground",
+                   "rejected_in": ["bg"], "last_reject": "2029-12-31 23:00:00"}]},
+        )  # fmt: skip
+
+    fs = [attempt(f"org.example.app{i}", "COARSE_LOCATION") for i in range(1, 6)]
+    fs.append(attempt("org.example.cam", "CAMERA"))
+    lines = build_report(case, [spec], fs).headline
+    assert lines == [
+        "org.example.cam tried to use the camera in the background and was refused, because "
+        "your settings allow it only while the app is in use.",
+        "org.example.app1, org.example.app2, org.example.app3 and 2 more tried to use your "
+        "location in the background and were refused, because your settings allow it only "
+        "while the app is in use.",
+    ]

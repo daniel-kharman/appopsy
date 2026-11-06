@@ -40,7 +40,7 @@ def test_same_content_as_the_markdown_report(html: str) -> None:
     assert "<h1>appopsy report: Pixel 11 Pro</h1>" in html
     ids = re.findall(r'<h2 id="(\w+)">', html)
     assert ids == ["summary", "privacy", "apps", "actions", "system", "method", "appendix"]
-    assert '<p class="headline">Facebook, WeChat and WhatsApp tried to use your location' in html
+    assert '<p class="headline">Google Maps received your location while not on screen.' in html
     assert "<strong>Google Maps (com.google.android.apps.maps)</strong> used your precise" in html
     assert "<td>precise location (FINE_LOCATION)</td>" in html
     assert "Settings &gt; Apps &gt; (the app) &gt; App battery usage" in html
