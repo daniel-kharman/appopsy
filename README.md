@@ -95,12 +95,15 @@ Pixel 11 Pro capture with personal data redacted, timestamps shifted and every
 third-party app except a small public set removed. It was generated with
 
 ```bash
-appopsy report tests/fixtures/17-google/capture-5 --redact -o docs/sample-report.md
+uv run python scripts/make_sample_report.py
 ```
+
+(the same as `appopsy report <capture> --redact`, but with a fixed alias key so the
+committed sample is reproducible; real redacted reports use a fresh key every time).
 
 It opens with a short headline:
 
-> Google Maps received your location while not on screen. Facebook, WeChat and WhatsApp tried to use your location in the background and were refused, because your settings allow it only while the app is in use. Facebook (14) and Messenger (3) have background jobs that can run on battery and mobile data at any time, 17 in all. Google Maps, which came with the phone, has the broadest access: 6 of the 9 kinds of sensitive access appopsy checks, including your precise location, contacts, photos and videos at any time.
+> Google Maps received your location while not on screen. Installed app 000427, Installed app 10284c and Installed app 317119 tried to use your location in the background and were refused, because your settings allow it only while the app is in use. Installed app 317119 (14) and Installed app 1d63bf (3) have background jobs that can run on battery and mobile data at any time, 17 in all. Google Maps, which came with the phone, has the broadest access: 6 of the 9 kinds of sensitive access appopsy checks, including your precise location, contacts, photos and videos at any time.
 
 then a summary, the findings (each with what it means, why it matters, what's
 probably harmless and the raw lines it rests on; long groups as one table), a line

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import re
 import shutil
 import stat
@@ -17,6 +18,7 @@ from appopsy.rules.case import CaseData
 from appopsy.rules.engine import EvidenceRef, Finding, load_rules, run_rules
 
 CAPTURES = Path(__file__).parent / "fixtures" / "17-google"
+ROOT_DIR = Path(__file__).resolve().parent.parent
 
 
 @pytest.fixture(scope="module")
@@ -55,7 +57,7 @@ def test_sections_in_order(report: str) -> None:
     ]
     appendices = [x for x in section(report, "## Appendix").splitlines() if x.startswith("### ")]
     assert appendices == [
-        "### Sensitive access at any time",
+        "### Sensitive access",
         "### Recent sensor use",
         "### Background jobs",
         "### System components",
@@ -116,7 +118,7 @@ def test_access_ranking_is_one_table_with_detail_for_any_time_apps(report: str) 
         "Facebook (com.facebook.katana)",
         "Messenger (com.facebook.orca)",
         "WeChat (com.tencent.mm)",
-        "X (com.twitter.android)",
+        "1 more app (listed in the appendix)",  # X: nothing sensitive
     ]
     assert (
         "| Google Maps (com.google.android.apps.maps) | 6: location, camera, microphone, "
@@ -125,17 +127,15 @@ def test_access_ranking_is_one_table_with_detail_for_any_time_apps(report: str) 
     assert (
         "| Facebook (com.facebook.katana) | 2: location, camera | — |" in ranking
     )  # selected photos: not counted
-    assert "| X (com.twitter.android) | none | — |" in ranking
     assert "**Google Maps" not in ranking  # no block per app in the main report
     detail = section(report, "## Appendix")
-    detail = detail[
-        detail.index("### Sensitive access at any time") : detail.index("### Recent sensor use")
-    ]
+    detail = detail[detail.index("### Sensitive access") : detail.index("### Recent sensor use")]
     entries = [x[5:] for x in detail.splitlines() if x.startswith("#### ")]
     assert entries == [  # only apps allowed something at any time, in rank order
         "Google Maps (com.google.android.apps.maps)",
         "WhatsApp (com.whatsapp)",
         "Phone (com.google.android.dialer)",
+        "No sensitive access",  # then the apps allowed none of it
     ]
     assert (
         "your precise location, contacts, photos and videos, plus running in the background "
@@ -202,12 +202,9 @@ def test_what_you_can_do_gives_a_concrete_step_per_app(report: str) -> None:
             assert ": Settings > Apps > " in line, line  # names where to go
     assert (
         "- Settings > Apps > (the app) > App battery usage: choose Restricted to defer its "
-        "background jobs. Apps and their jobs: Facebook (14), Messenger (3)." in todo
+        "background jobs. Most jobs first: Facebook (14), Messenger (3)." in todo
     )
-    assert (
-        "- Google Maps: Settings > Apps > Google Maps > Permissions: set Location to "
-        "\u201cAllow only while using the app\u201d; set Contacts to" in todo
-    )
+    assert "- Google Maps: Settings > Apps > Google Maps > Permissions: set Contacts to" in todo
     assert "- Phone:" not in todo  # contacts and call log are what a phone app is for
     assert "- X:" not in todo  # allowed nothing: nothing to narrow
     # Selected photos only is the privacy-friendly choice: never an action.
@@ -272,7 +269,8 @@ def test_method_cites_threshold_sources(report: str) -> None:
     method = section(report, "## How this report was made")
     assert "(https://support.google.com/googleplay/android-developer/answer/7385505)" in method
     assert "checked 2026-11-01, verified." in method
-    assert "No threshold: This rule has no threshold on purpose." in method
+    assert "No threshold: There is no published guidance" in method
+    assert "No threshold: No threshold" not in method and "no threshold on purpose" not in method
 
 
 def test_no_html_in_the_report(report: str) -> None:
@@ -364,13 +362,17 @@ def test_repeats_merge_and_known_libraries_are_named() -> None:
 
 @pytest.mark.parametrize("name", ["sample-report.md", "sample-report.html"])
 def test_readme_sample_report_is_current(name: str) -> None:
-    """docs/sample-report.* must match what `report --redact` makes from capture-5.
-    Regenerate: appopsy report tests/fixtures/17-google/capture-5 --redact -o docs/<name>"""
-    from appopsy.report.run import analyse
-
-    rendered = analyse(CAPTURES / "capture-5", "privacy").render(redact=True)
-    expected = rendered.html if name.endswith(".html") else rendered.markdown
-    committed = (Path(__file__).parent.parent / "docs" / name).read_text()
+    """docs/sample-report.* must match a fresh render (capture-5, redacted, with the
+    sample's fixed alias key). Regenerate: uv run python scripts/make_sample_report.py"""
+    spec = importlib.util.spec_from_file_location(
+        "make_sample_report", ROOT_DIR / "scripts" / "make_sample_report.py"
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    markdown, html = module.render()
+    expected = html if name.endswith(".html") else markdown
+    committed = (ROOT_DIR / "docs" / name).read_text()
     assert committed == expected, f"docs/{name} is stale; regenerate it (see docstring)"
 
 
@@ -458,3 +460,72 @@ def test_developer_commands_are_hidden_but_work() -> None:
     for hidden in ("redact-fixture", "mask"):
         assert hidden not in listing
         assert runner.invoke(app, [hidden, "--help"]).exit_code == 0
+
+
+def test_core_access_is_never_suggested_for_removal(report: str) -> None:
+    """Location is what Maps is for (`core:` in apps.yaml): no step touches it."""
+    todo = section(report, "## What you can do")
+    maps = [x for x in todo.splitlines() if x.startswith("- Google Maps:")]
+    assert maps and not any("Location" in x for x in maps)
+    phone = [x for x in todo.splitlines() if x.startswith("- Phone:")]
+    assert not any("Contacts" in x or "Call logs" in x for x in phone)
+
+
+def test_headline_merges_one_apps_sensors_with_the_same_visibility() -> None:
+    """The Google app used the microphone and camera from a foreground service: one
+    sentence, with its sentence name; another app's microphone stays separate."""
+    case = CaseData(CAPTURES / "capture-5")
+    specs = load_rules(packs=("privacy",))
+    g = "com.google.android.googlequicksearchbox"
+    fs = [
+        _use(g, "RECORD_AUDIO", ["fgsvc"], "notable"),
+        _use("org.example.voice", "RECORD_AUDIO", ["fgsvc"], "notable"),
+    ]
+    fs[0].facts["uses"].append(
+        {"op": "CAMERA", "mode": "foreground", "states": ["fgsvc"], "last": "2029-12-31 23:00:00"}
+    )
+    lines = build_report(case, specs, fs).headline
+    assert (
+        "The Google app used the microphone and the camera from a foreground service, which "
+        "shows a notification while it runs."
+    ) in lines
+    assert (
+        "org.example.voice used the microphone from a foreground service, which shows a "
+        "notification while it runs."
+    ) in lines
+
+
+def test_battery_step_names_the_top_five_then_counts() -> None:
+    case = CaseData(CAPTURES / "capture-5")
+    (spec,) = [s for s in load_rules() if s.id == "unconstrained-background-work"]
+    fs = [
+        Finding(
+            rule_id=spec.id,
+            pack="privacy",
+            severity="notable",
+            title=spec.title,
+            package=f"org.example.app{i}",
+            summary=f"org.example.app{i} has jobs.",
+            facts={
+                "jobs": [{"what": f"Job{j}", "requires": [], "periodic": None} for j in range(i)],
+                "undetermined": 0,
+            },
+        )
+        for i in range(1, 9)
+    ]
+    text = render_markdown(build_report(case, [spec], fs))
+    line = next(x for x in text.splitlines() if "Most jobs first:" in x)
+    assert line.endswith(
+        "org.example.app8 (8), org.example.app7 (7), org.example.app6 (6), "
+        "org.example.app5 (5), org.example.app4 (4) and 3 more (see the table above)."
+    )
+
+
+def test_apps_with_no_sensitive_access_collapse_into_one_row(report: str) -> None:
+    findings = section(report, "## Privacy findings")
+    ranking = findings[findings.index("#### Sensitive access each app is allowed") :]
+    ranking = ranking[: ranking.index("**Probably harmless:**")]
+    assert "| 1 more app (listed in the appendix) | none | — |" in ranking  # X
+    assert "X (com.twitter.android)" not in ranking
+    appendix = section(report, "## Appendix")
+    assert "#### No sensitive access\n\n1: X (com.twitter.android)." in appendix

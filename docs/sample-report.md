@@ -3,11 +3,13 @@
 Google Pixel 11 Pro, Android 17 (SDK 37), security patch 2026-10-05.
 Collected on a date not shown in this copy, with appopsy 0.1.0.dev0.
 
-> **Redacted copy for sharing.** Every app in it is a system app or a well-known
-> app, so all keep their names. Times are shown as days before collection. Check it
-> before you share it.
+> **Redacted copy for sharing.** Every app you installed (5) is shown
+> as "Installed app" with an id that changes every time a report is made, and the
+> names of its jobs and alarms are hidden. Only system components and apps that
+> came with the phone keep their names. Times are shown as days before collection.
+> Check it before you share it.
 
-Google Maps received your location while not on screen. Facebook, WeChat and WhatsApp tried to use your location in the background and were refused, because your settings allow it only while the app is in use. Facebook (14) and Messenger (3) have background jobs that can run on battery and mobile data at any time, 17 in all. Google Maps, which came with the phone, has the broadest access: 6 of the 9 kinds of sensitive access appopsy checks, including your precise location, contacts, photos and videos at any time.
+Google Maps received your location while not on screen. Installed app 000427, Installed app 10284c and Installed app 317119 tried to use your location in the background and were refused, because your settings allow it only while the app is in use. Installed app 317119 (14) and Installed app 1d63bf (3) have background jobs that can run on battery and mobile data at any time, 17 in all. Google Maps, which came with the phone, has the broadest access: 6 of the 9 kinds of sensitive access appopsy checks, including your precise location, contacts, photos and videos at any time.
 
 This report says what the apps on this phone are allowed to do, what Android
 recorded them doing, and what they tried to do and were refused. appopsy only
@@ -35,7 +37,7 @@ Android recorded the app trying to use location, the camera, the microphone or b
 
 **Why it matters:** The attempt shows the app wanted sensor data while you weren't using it. Your setting worked, but the app kept trying: repeated refused attempts can mean it is built to collect data in the background where it is allowed to.
 
-**Facebook (com.facebook.katana)** tried to use your location in the background, where it isn't allowed, and was refused.
+**Installed app 317119** tried to use your location in the background, where it isn't allowed, and was refused.
 
 | Sensor | Setting | Refused while | Last refused |
 |---|---|---|---|
@@ -44,7 +46,7 @@ Android recorded the app trying to use location, the camera, the microphone or b
 
 Evidence: dumpsys-appops.txt: lines 916, 917, 969, 970, 976, 977
 
-**WeChat (com.tencent.mm)** tried to use your precise location in the background, where it isn't allowed, and was refused.
+**Installed app 10284c** tried to use your precise location in the background, where it isn't allowed, and was refused.
 
 | Sensor | Setting | Refused while | Last refused |
 |---|---|---|---|
@@ -52,7 +54,7 @@ Evidence: dumpsys-appops.txt: lines 916, 917, 969, 970, 976, 977
 
 Evidence: dumpsys-appops.txt: lines 639, 691
 
-**WhatsApp (com.whatsapp)** tried to use your approximate location in the background, where it isn't allowed, and was refused.
+**Installed app 000427** tried to use your approximate location in the background, where it isn't allowed, and was refused.
 
 | Sensor | Setting | Refused while | Last refused |
 |---|---|---|---|
@@ -96,8 +98,8 @@ One row per app, with up to three of its jobs. Details: [appendix](#background-j
 
 | App | Jobs | Includes |
 |---|---|---|
-| Facebook (com.facebook.katana) | 14 | IdentityHashWorker, OfflineFeedBackgroundPrefetchWorker, NotificationsPermissionWorker, ... |
-| Messenger (com.facebook.orca) | 3 | EarlyAccessSyncWorker, SimCarrierInfoLogWorker, LollipopUploadService |
+| Installed app 317119 | 14 | (hidden) |
+| Installed app 1d63bf | 3 | (hidden) |
 
 **Probably harmless:**
 
@@ -113,17 +115,17 @@ A ranking of apps by how many of nine kinds of sensitive access Android currentl
 
 **Why it matters:** Permissions granted once are easy to forget. Seeing which apps hold the most sensitive access, and which can use it at any time, shows where narrowing a permission makes the most difference.
 
-Ranked by kinds of access, then how many at any time. Each app allowed something at any time has a full entry. Details: [appendix](#sensitive-access-at-any-time).
+Ranked by kinds of access, then how many at any time. Each app allowed something at any time has a full entry. Details: [appendix](#sensitive-access).
 
 | App | Kinds of access | At any time |
 |---|---|---|
 | Google Maps (com.google.android.apps.maps) | 6: location, camera, microphone, contacts, photos and videos, running in the background | 3 |
-| WhatsApp (com.whatsapp) | 5: location, camera, microphone, contacts, photos and videos | 2 |
+| Installed app 000427 | 5: location, camera, microphone, contacts, photos and videos | 2 |
 | Phone (com.google.android.dialer) | 4: camera, microphone, contacts, call log | 2 |
-| Facebook (com.facebook.katana) | 2: location, camera | — |
-| Messenger (com.facebook.orca) | 2: camera, microphone | — |
-| WeChat (com.tencent.mm) | 1: location | — |
-| X (com.twitter.android) | none | — |
+| Installed app 317119 | 2: location, camera | — |
+| Installed app 1d63bf | 2: camera, microphone | — |
+| Installed app 10284c | 1: location | — |
+| 1 more app (listed in the appendix) | none | — |
 
 **Probably harmless:**
 
@@ -141,9 +143,9 @@ One row per app; each use, by sensor and state, is listed. Details: [appendix](#
 
 | App | Used | Last used | Longest location request |
 |---|---|---|---|
-| Facebook (com.facebook.katana) | your location | yesterday | — |
 | Google Maps (com.google.android.apps.maps) | your precise location, plus the camera and the microphone | yesterday | 3:37:19 |
-| WhatsApp (com.whatsapp) | your location, plus the camera and the microphone | yesterday | — |
+| Installed app 000427 | your location, plus the camera and the microphone | yesterday | — |
+| Installed app 317119 | your location | yesterday | — |
 
 **Probably harmless:**
 
@@ -170,21 +172,21 @@ These apps came with the phone; most of their jobs come from shared Google libra
 
 ## Per-app detail
 
-- **Facebook (com.facebook.katana)**, Google Play: [Tried to use a sensor in the background and was refused](#tried-to-use-a-sensor-in-the-background-and-was-refused) (notable); [Background work that can run at any time](#background-work-that-can-run-at-any-time) (notable); [Sensitive access each app is allowed](#sensitive-access-each-app-is-allowed) (info); [Recent use of location, camera and microphone](#recent-use-of-location-camera-and-microphone) (info)
 - **Google Maps (com.google.android.apps.maps)**, came with the phone: [Used a sensor while not on screen](#used-a-sensor-while-not-on-screen) (notable); [Sensitive access each app is allowed](#sensitive-access-each-app-is-allowed) (info); [Recent use of location, camera and microphone](#recent-use-of-location-camera-and-microphone) (info); [Background work that can run at any time](#background-work-that-can-run-at-any-time-1) (info)
-- **WhatsApp (com.whatsapp)**, Google Play: [Tried to use a sensor in the background and was refused](#tried-to-use-a-sensor-in-the-background-and-was-refused) (notable); [Sensitive access each app is allowed](#sensitive-access-each-app-is-allowed) (info); [Recent use of location, camera and microphone](#recent-use-of-location-camera-and-microphone) (info)
-- **Messenger (com.facebook.orca)**, Google Play: [Background work that can run at any time](#background-work-that-can-run-at-any-time) (notable); [Sensitive access each app is allowed](#sensitive-access-each-app-is-allowed) (info)
-- **WeChat (com.tencent.mm)**, Google Play: [Tried to use a sensor in the background and was refused](#tried-to-use-a-sensor-in-the-background-and-was-refused) (notable); [Sensitive access each app is allowed](#sensitive-access-each-app-is-allowed) (info)
+- **Installed app 317119**, Google Play: [Tried to use a sensor in the background and was refused](#tried-to-use-a-sensor-in-the-background-and-was-refused) (notable); [Background work that can run at any time](#background-work-that-can-run-at-any-time) (notable); [Sensitive access each app is allowed](#sensitive-access-each-app-is-allowed) (info); [Recent use of location, camera and microphone](#recent-use-of-location-camera-and-microphone) (info)
+- **Installed app 000427**, Google Play: [Tried to use a sensor in the background and was refused](#tried-to-use-a-sensor-in-the-background-and-was-refused) (notable); [Sensitive access each app is allowed](#sensitive-access-each-app-is-allowed) (info); [Recent use of location, camera and microphone](#recent-use-of-location-camera-and-microphone) (info)
+- **Installed app 10284c**, Google Play: [Tried to use a sensor in the background and was refused](#tried-to-use-a-sensor-in-the-background-and-was-refused) (notable); [Sensitive access each app is allowed](#sensitive-access-each-app-is-allowed) (info)
+- **Installed app 1d63bf**, Google Play: [Background work that can run at any time](#background-work-that-can-run-at-any-time) (notable); [Sensitive access each app is allowed](#sensitive-access-each-app-is-allowed) (info)
+- **Installed app cdcc14**, Google Play: [Sensitive access each app is allowed](#sensitive-access-each-app-is-allowed) (info)
 - **Phone (com.google.android.dialer)**, came with the phone: [Sensitive access each app is allowed](#sensitive-access-each-app-is-allowed) (info)
-- **X (com.twitter.android)**, Google Play: [Sensitive access each app is allowed](#sensitive-access-each-app-is-allowed) (info)
 
 ## What you can do
 
 ### Tried to use a sensor in the background and was refused
 
-- Facebook: Settings > Apps > Facebook > Permissions > Location: choose “Don't allow” if you don't use the features that need it.
-- WeChat: Settings > Apps > WeChat > Permissions > Location: choose “Don't allow” if you don't use the features that need it.
-- WhatsApp: Settings > Apps > WhatsApp > Permissions > Location: choose “Don't allow” if you don't use the features that need it.
+- Installed app 317119: Settings > Apps > Installed app 317119 > Permissions > Location: choose “Don't allow” if you don't use the features that need it.
+- Installed app 10284c: Settings > Apps > Installed app 10284c > Permissions > Location: choose “Don't allow” if you don't use the features that need it.
+- Installed app 000427: Settings > Apps > Installed app 000427 > Permissions > Location: choose “Don't allow” if you don't use the features that need it.
 
 In general:
 
@@ -194,17 +196,13 @@ In general:
 
 ### Used a sensor while not on screen
 
-- Google Maps: Settings > Apps > Google Maps > Permissions: set Location to “Allow only while using the app”. Use from a foreground service you start (such as navigation) keeps working.
-
-In general:
-
 - Settings > Apps > (the app) > Permissions > Location: choose "Allow only while using the app".
 - Settings > Apps > (the app) > Permissions > Microphone or Camera: choose "Ask every time" or "Don't allow".
 - Settings > Security & privacy > Privacy > Privacy dashboard shows when each app used them in the last 24 hours.
 
 ### Background work that can run at any time
 
-- Settings > Apps > (the app) > App battery usage: choose Restricted to defer its background jobs. Apps and their jobs: Facebook (14), Messenger (3).
+- Settings > Apps > (the app) > App battery usage: choose Restricted to defer its background jobs. Most jobs first: Installed app 317119 (14), Installed app 1d63bf (3).
 
 In general:
 
@@ -213,8 +211,8 @@ In general:
 
 ### Sensitive access each app is allowed
 
-- Google Maps: Settings > Apps > Google Maps > Permissions: set Location to “Allow only while using the app”; set Contacts to “Don't allow” if it doesn't need them; set Photos and videos to “Allow limited access”.
-- WhatsApp: Settings > Apps > WhatsApp > Permissions: set Photos and videos to “Allow limited access”.
+- Google Maps: Settings > Apps > Google Maps > Permissions: set Contacts to “Don't allow” if it doesn't need them; set Photos and videos to “Allow limited access”.
+- Installed app 000427: Settings > Apps > Installed app 000427 > Permissions: set Photos and videos to “Allow limited access”.
 
 In general:
 
@@ -250,11 +248,11 @@ Each finding in full: [appendix](#system-components-1).
 
 - **Tried to use a sensor in the background and was refused** (`background-sensor-attempt`, privacy, notable).
 - **Used a sensor while not on screen** (`background-sensor-use`, privacy, notable).
-  No threshold: No threshold: one background delivery is enough to report. Severity follows the sensor and how visible the use was: concern for the microphone or camera used in the background or cached state (bg, cch), where nothing on screen shows it; notable for the microphone or camera used only from a foreground service (fgsvc), because Android shows the service's notification and the privacy indicator while it runs; notable for location and body sensors in any of these states (body sensors grouped with location by appopsy, not by an external source). Only Access events in the bg, cch and fgsvc states count, for FINE_LOCATION, COARSE_LOCATION, CAMERA, RECORD_AUDIO and BODY_SENSORS; location requests (MONITOR_LOCATION, MONITOR_HIGH_POWER_LOCATION) and GPS never do, because they don't show that anything was delivered.
+  No threshold: One background delivery is enough to report. Severity follows the sensor and how visible the use was: concern for the microphone or camera used in the background or cached state (bg, cch), where nothing on screen shows it; notable for the microphone or camera used only from a foreground service (fgsvc), because Android shows the service's notification and the privacy indicator while it runs; notable for location and body sensors in any of these states (body sensors grouped with location by appopsy, not by an external source). Only Access events in the bg, cch and fgsvc states count, for FINE_LOCATION, COARSE_LOCATION, CAMERA, RECORD_AUDIO and BODY_SENSORS; location requests (MONITOR_LOCATION, MONITOR_HIGH_POWER_LOCATION) and GPS never do, because they don't show that anything was delivered.
 - **Wakes the phone often** (`chatty-wakeups`, privacy, notable).
   Threshold `wakeups_per_hour`: 10 wakeup alarms (RTC_WAKEUP and ELAPSED_REALTIME_WAKEUP) per hour. Source: [Play Console Help, "Excessive wake-ups" (Android vitals)](https://support.google.com/googleplay/android-developer/answer/7385505), checked 2026-11-01, verified. Android vitals counts more than 10 wake-ups per hour in a battery session, only while the device is not charging, and only ELAPSED_REALTIME_WAKEUP and RTC_WAKEUP alarms. appopsy counts only those two alarm types too, but dumpsys alarm gives a since-boot total, so its rate is wakeups since boot divided by uptime, charging time included. That approximates the battery-session rate and likely understates it.
 - **Sensitive access each app is allowed** (`over-privileged-app`, privacy, info).
-  No threshold: This rule has no threshold on purpose. There is no published guidance on how many sensitive permissions make an app "over-privileged", so appopsy doesn't pick a number: it ranks apps by the number of kinds of access allowed, then by how many are allowed at any time, then by how many are full rather than partial, and reports every app at `info`. A kind of access counts once however many Android operations sit behind it. Operations the dump doesn't print for an app (e.g. RUN_ANY_IN_BACKGROUND when left at its default) are not counted.
+  No threshold: There is no published guidance on how many sensitive permissions make an app "over-privileged", so appopsy doesn't pick a number: it ranks apps by the number of kinds of access allowed, then by how many are allowed at any time, then by how many are full rather than partial, and reports every app at `info`. A kind of access counts once however many Android operations sit behind it. Operations the dump doesn't print for an app (e.g. RUN_ANY_IN_BACKGROUND when left at its default) are not counted.
 - **Recent use of location, camera and microphone** (`sensor-use-summary`, privacy, info).
 - **Background work that can run at any time** (`unconstrained-background-work`, privacy, notable).
   No threshold: Apps you installed are reported at notable. Apps that came with the phone (a system package with a launcher icon) are reported at info: on a typical phone they schedule dozens of such jobs, most from shared Google libraries (the notifications platform, an app framework, account sync), so listing each at notable would bury the apps you chose. The report shows them as one compact table with full job lists in an appendix. Platform components stay in the system section, as for every rule.
@@ -267,9 +265,9 @@ App names for widely used apps come from [Wikidata](https://www.wikidata.org)
 
 ## Appendix
 
-### Sensitive access at any time
+### Sensitive access
 
-Every app allowed at least one kind of sensitive access at any time, in rank order.
+Every app allowed at least one kind of sensitive access at any time, in rank order, then the apps allowed none of it.
 
 #### Google Maps (com.google.android.apps.maps)
 
@@ -284,7 +282,7 @@ is allowed 6 of the 9 kinds of sensitive access appopsy checks: your precise loc
 | Photos and videos (READ_MEDIA_IMAGES, READ_MEDIA_VIDEO, READ_MEDIA_VISUAL_USER_SELECTED) | at any time | whole library |
 | Running in the background (RUN_ANY_IN_BACKGROUND) | at any time | — |
 
-#### WhatsApp (com.whatsapp)
+#### Installed app 000427
 
 is allowed 5 of the 9 kinds of sensitive access appopsy checks: your contacts, photos and videos at any time; your precise location, plus the camera and the microphone only while it's in use. It ranks 2 of 7 apps.
 
@@ -307,16 +305,13 @@ is allowed 4 of the 9 kinds of sensitive access appopsy checks: your contacts an
 | Contacts (READ_CONTACTS) | at any time |
 | Call log (READ_CALL_LOG) | at any time |
 
+#### No sensitive access
+
+1: Installed app cdcc14.
+
 ### Recent sensor use
 
 Each app's recorded uses, by sensor and the state the app was in.
-
-#### Facebook (com.facebook.katana)
-
-| Sensor | App was | Last used |
-|---|---|---|
-| approximate location (COARSE_LOCATION) | open on screen | yesterday |
-| precise location (FINE_LOCATION) | open on screen | yesterday |
 
 #### Google Maps (com.google.android.apps.maps)
 
@@ -334,7 +329,7 @@ Each app's recorded uses, by sensor and the state the app was in.
 |---|---|---|---|
 | gps | 3:37:19 | 0:00:42 | 10596 |
 
-#### WhatsApp (com.whatsapp)
+#### Installed app 000427
 
 | Sensor | App was | Last used | For |
 |---|---|---|---|
@@ -342,6 +337,13 @@ Each app's recorded uses, by sensor and the state the app was in.
 | precise location (FINE_LOCATION) | open on screen | 2 days ago | — |
 | camera (CAMERA) | open on screen | yesterday | 0:00:14 |
 | microphone (RECORD_AUDIO) | open on screen | 4 days ago | 0:04:20 |
+
+#### Installed app 317119
+
+| Sensor | App was | Last used |
+|---|---|---|
+| approximate location (COARSE_LOCATION) | open on screen | yesterday |
+| precise location (FINE_LOCATION) | open on screen | yesterday |
 
 ### Background jobs
 
@@ -353,42 +355,42 @@ Job names that several apps schedule because they come from the same library. Ea
 
 | Library | Job | Apps | Used by |
 |---|---|---|---|
-| a library several apps share | SimCarrierInfoLogWorker | 2 | Facebook, Messenger |
+| a library several apps share | (hidden) | 2 | Installed app 1d63bf, Installed app 317119 |
 
-#### Facebook (com.facebook.katana)
+#### Installed app 1d63bf
 
-has 14 background jobs that can run without charging, the phone being idle or Wi-Fi, including IdentityHashWorker, OfflineFeedBackgroundPrefetchWorker, NotificationsPermissionWorker and 11 more.
-
-| Job | Waits only for |
-|---|---|
-| IdentityHashWorker | any network |
-| OfflineFeedBackgroundPrefetchWorker | any network |
-| NotificationsPermissionWorker | — |
-| StoryTrayPredictionPrefetchWorker | any network |
-| MediaCountUploadWorker | any network |
-| FeedAdsChannelBackgroundPrefetchWorker | any network |
-| FeedBackgroundPrefetchWorker | any network |
-| a library several apps share: SimCarrierInfoLogWorker | any network |
-| OnDeviceDerivedAppHistoryWorker | any network |
-| FFJobService | a deadline, any network |
-| FBPapayaJobService | any network |
-| LollipopConditionalWorkerService | any network |
-| PushNegativeFeedbackLollipopService | any network |
-| UpdateLocalMediaStoreJobService | — |
-
-Evidence: dumpsys-jobscheduler.txt: lines 679-716, 717-754, 755-790, 872-909, 910-947, 948-985, 986-1023, 1024-1061 and 6 more
-
-#### Messenger (com.facebook.orca)
-
-has 3 background jobs that can run without charging, the phone being idle or Wi-Fi: EarlyAccessSyncWorker, SimCarrierInfoLogWorker and LollipopUploadService.
+has 3 background jobs that can run without charging, the phone being idle or Wi-Fi (names hidden).
 
 | Job | Waits only for |
 |---|---|
-| EarlyAccessSyncWorker | any network |
-| a library several apps share: SimCarrierInfoLogWorker | any network |
-| LollipopUploadService | a deadline, any network |
+| (hidden) | any network |
+| (hidden) | any network |
+| (hidden) | a deadline, any network |
 
 Evidence: dumpsys-jobscheduler.txt: lines 548-590, 591-633, 634-678
+
+#### Installed app 317119
+
+has 14 background jobs that can run without charging, the phone being idle or Wi-Fi (names hidden).
+
+| Job | Waits only for |
+|---|---|
+| (hidden) | any network |
+| (hidden) | any network |
+| (hidden) | — |
+| (hidden) | any network |
+| (hidden) | any network |
+| (hidden) | any network |
+| (hidden) | any network |
+| (hidden) | any network |
+| (hidden) | any network |
+| (hidden) | a deadline, any network |
+| (hidden) | any network |
+| (hidden) | any network |
+| (hidden) | any network |
+| (hidden) | — |
+
+Evidence: dumpsys-jobscheduler.txt: lines 679-716, 717-754, 755-790, 872-909, 910-947, 948-985, 986-1023, 1024-1061 and 6 more
 
 #### Google Maps (com.google.android.apps.maps)
 

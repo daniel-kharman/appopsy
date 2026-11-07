@@ -300,3 +300,38 @@ def test_background_microphone_severity_depends_on_visibility(tmp_path: Path) ->
     (f,) = run_rules(case, [spec])
     assert f.severity == "concern" and f.facts["camera_mic_in_background"] is True
     assert "foreground service" not in f.summary.split(".", 1)[1]
+
+
+def test_settings_is_a_platform_component_despite_its_icon() -> None:
+    case = CaseData(CAPTURES / "capture-5")
+    assert "com.android.settings" in case.launcher
+    assert case.classify("com.android.settings") == "system"
+
+
+def test_in_use_setting_with_background_use_is_explained(tmp_path: Path) -> None:
+    """Allowed "only while in use", yet used while cached: explain Android's brief
+    continuation and the foreground-service allowance, so the setting doesn't look
+    broken. An "allow" (any time) use gets no such note."""
+    (tmp_path / "pm-list-packages-3p.txt").write_text(
+        "package:org.example.walk  installer=com.android.vending\n"
+    )
+    appops = (
+        "AppOps Uid Op State\n"
+        "  Uid u0a501:\n"
+        "    state=cch\n"
+        "      FINE_LOCATION: mode=foreground\n"
+        "    Package org.example.walk:\n"
+        "      FINE_LOCATION (allow):\n"
+        "        null=[\n"
+        "          Access: [cch-s] 2029-12-31 23:00:00.000 (-1h0m0s0ms)\n"
+        "        ]\n"
+    )
+    (tmp_path / "dumpsys-appops.txt").write_text(appops)
+    (spec,) = [s for s in load_rules() if s.id == "background-sensor-use"]
+    (f,) = run_rules(CaseData(tmp_path), [spec])
+    assert f.facts["in_use_setting_background_use"] is True
+    assert "only while using the app" in f.summary and "it still works" in f.summary
+    assert "foreground service the app started while you were using it" in f.summary
+    (tmp_path / "dumpsys-appops.txt").write_text(appops.replace("mode=foreground", "mode=allow"))
+    (f,) = run_rules(CaseData(tmp_path), [spec])
+    assert f.facts["in_use_setting_background_use"] is False and "it still works" not in f.summary

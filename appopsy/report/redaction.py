@@ -1,7 +1,9 @@
 """`--redact`: a copy of the report that can be shared.
 
-Apps that aren't public knowledge (anything but system packages and the apps in
-the bundled name map) are shown as "Unlisted app <id>". The id is an HMAC of the
+Every app the user installed, however well known, is shown as "Installed app
+<id>": which apps someone has is personal whatever their fame. Only system
+components and apps that came with the phone (system packages) keep their names;
+the Wikidata names are for the owner's own report only. The id is an HMAC of the
 package name under a key made fresh for every render: a plain hash could be
 reversed by hashing a list of popular apps, and a fresh key means two shared
 reports can't be linked. Job, alarm and location-request names of those apps are
@@ -44,7 +46,7 @@ class RedactionError(Exception):
 
 @dataclass
 class Redaction:
-    aliases: dict[str, str]  # private package -> "Unlisted app 3f2a9c"
+    aliases: dict[str, str]  # private package -> "Installed app 3f2a9c"
     hidden: set[str] = field(default_factory=set)  # strings that must not be in the text
 
     def is_private(self, package: str | None) -> bool:
@@ -53,7 +55,7 @@ class Redaction:
 
 def _alias(key: bytes, package: str) -> str:
     digest = hmac.new(key, package.encode(), hashlib.sha256).hexdigest()
-    return f"Unlisted app {digest[:6]}"
+    return f"Installed app {digest[:6]}"
 
 
 def _inner_names(f: Finding) -> Iterable[str]:
@@ -68,21 +70,21 @@ def _inner_names(f: Finding) -> Iterable[str]:
             yield str(request["tag"])
 
 
-def plan(
-    case: CaseData, findings: list[Finding], public: set[str], key: bytes | None = None
-) -> Redaction:
+def plan(case: CaseData, findings: list[Finding], key: bytes | None = None) -> Redaction:
     """Which packages to alias and which strings to keep out of the redacted text.
 
-    ``public``: package names that may be shown (system packages, the name map).
+    Everything that isn't a system package (`pm list packages -s`, which includes
+    apps that came with the phone) is aliased: installed apps, their installers,
+    and any package the capture can't place. No name list makes an app public.
     """
     key = key or secrets.token_bytes(32)
     shown = {f.package for f in findings if f.package}
     installers = {i for i in case.installers.values() if i}
-    private = sorted((case.third_party | shown | installers) - public - case.system - {"android"})
+    private = sorted((case.third_party | shown | installers) - case.system - {"android"})
     redaction = Redaction({p: _alias(key, p) for p in private})
     redaction.hidden |= set(private)
     # A name a public app in the same report also uses (library workers such as
-    # GnpWorker or SyncJobService) says nothing about which unlisted app has it.
+    # GnpWorker or SyncJobService) says nothing about which installed app has it.
     # Short names like "Sync" would match ordinary words: only distinctive ones count.
     shared = {n for f in findings if not redaction.is_private(f.package) for n in _inner_names(f)}
     for f in findings:

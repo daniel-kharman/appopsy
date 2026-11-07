@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from appopsy import __version__
-from appopsy.report.build import build_report, known_apps
+from appopsy.report.build import build_report
 from appopsy.report.html import render_html
 from appopsy.report.markdown import render_markdown
 from appopsy.report.redaction import check, plan
@@ -46,11 +46,13 @@ class Analysis:
     def warnings(self) -> int:
         return len(self.case.warnings)
 
-    def render(self, redact: bool = False) -> Rendered:
+    def render(self, redact: bool = False, key: bytes | None = None) -> Rendered:
         """Markdown and HTML from one view model (so a redacted pair shares its aliases).
+        ``key``: the alias key; None (every real report) makes a fresh random one. Only
+        the committed sample report passes a fixed key, to be reproducible.
         ``redact``: the shareable copy, both texts checked before they're returned
         (raises RedactionError if anything private is left)."""
-        redaction = plan(self.case, self.findings, public=set(known_apps())) if redact else None
+        redaction = plan(self.case, self.findings, key=key) if redact else None
         report = build_report(self.case, self.specs, self.findings, self.packs, redaction)
         rendered = Rendered(render_markdown(report), render_html(report))
         if redaction is not None:

@@ -11,7 +11,7 @@ import pytest
 from typer.testing import CliRunner
 
 from appopsy.cli import app
-from appopsy.report.build import build_report, known_apps
+from appopsy.report.build import build_report
 from appopsy.report.markdown import render_markdown
 from appopsy.report.redaction import RedactionError, check, plan
 from appopsy.rules.case import CaseData
@@ -50,24 +50,34 @@ def case_dir(tmp_path: Path) -> Path:
 def render(case: CaseData, key: bytes | None = None) -> tuple[str, object]:
     specs = load_rules(packs=("privacy",))
     findings = run_rules(case, specs)
-    redaction = plan(case, findings, public=set(known_apps()), key=key)
+    redaction = plan(case, findings, key=key)
     text = render_markdown(build_report(case, specs, findings, ("privacy",), redaction))
     return text, redaction
 
 
-def test_unlisted_apps_are_aliased_and_their_names_hidden(case_dir: Path) -> None:
+def test_installed_apps_are_aliased_and_their_names_hidden(case_dir: Path) -> None:
     case = CaseData(case_dir / "raw")
     text, redaction = render(case, key=b"k" * 32)
     check(text, redaction)  # type: ignore[arg-type]
     for leak in (PRIVATE, "BankStatementSyncWorker", "org.example.store"):
         assert leak not in text, leak
     alias = redaction.aliases[PRIVATE]  # type: ignore[attr-defined]
-    assert alias.startswith("Unlisted app ") and f"| {alias} | 1 | (hidden) |" in text
+    assert alias.startswith("Installed app ") and f"| {alias} | 1 | (hidden) |" in text
     assert f"#### {alias}\n\nhas 1 background job" in text  # appendix entry
     assert "(names hidden)" in text and "| (hidden) |" in text
-    assert "Redacted copy for sharing." in text and "1 app(s)" in text
-    # Public apps keep their names; the allowlisted installer store is shown generically.
-    assert "Facebook (com.facebook.katana)" in text and "Google Maps" in text
+    assert "Redacted copy for sharing." in text and "Every app you installed (" in text
+    # Every installed app is aliased, however well known; apps that came with the
+    # phone and system components keep their names.
+    for installed in (
+        "com.facebook.katana",
+        "Facebook",
+        "com.whatsapp",
+        "WhatsApp",
+        "com.twitter.android",
+    ):
+        assert installed not in text, installed
+    assert "Google Maps (com.google.android.apps.maps)" in text
+    assert "Google Play services (com.google.android.gms)" in text
     assert "another app store" in text
 
 
@@ -99,12 +109,12 @@ def test_cli_report_redact_writes_the_shareable_copy(case_dir: Path) -> None:
     result = CliRunner().invoke(app, ["report", str(case_dir), "--redact"])
     assert result.exit_code == 0, result.output
     out = case_dir / "report" / "report-redacted.md"
-    assert PRIVATE not in out.read_text() and "Unlisted app" in out.read_text()
+    assert PRIVATE not in out.read_text() and "Installed app" in out.read_text()
     assert not (case_dir / "report" / "report.md").exists()  # only what was asked for
 
 
 def test_names_public_apps_share_are_not_secrets(case_dir: Path) -> None:
-    """Library job names (GnpWorker, SyncJobService) that public apps also show reveal
+    """Library job names (GnpWorker, SyncJobService) that system apps also show reveal
     nothing about which unlisted app uses them, so they don't block the report."""
     jobs = case_dir / "raw" / "dumpsys-jobscheduler.txt"
     text = jobs.read_text().replace(WORKER, "androidx.work.impl.SystemJobService")
@@ -112,11 +122,12 @@ def test_names_public_apps_share_are_not_secrets(case_dir: Path) -> None:
     case = CaseData(case_dir / "raw")
     specs = load_rules(packs=("privacy",))
     findings = run_rules(case, specs)
-    # Facebook (public) shows the same job name.
-    fb = next(f for f in findings if f.rule_id == "unconstrained-background-work"
-              and f.package == "com.facebook.katana")  # fmt: skip
-    fb.facts["jobs"].append({"what": "SystemJobService", "requires": [], "periodic": None})
-    redaction = plan(case, findings, public=set(known_apps()))
+    # Google Maps (came with the phone, so public) shows the same job name.
+    maps = next(f for f in findings if f.rule_id == "unconstrained-background-work"
+                and f.package == "com.google.android.apps.maps")  # fmt: skip
+    maps.facts["jobs"].append({"what": "SystemJobService", "requires": [], "periodic": None})
+
+    redaction = plan(case, findings)
     assert "SystemJobService" not in redaction.hidden
     assert PRIVATE in redaction.hidden
 
@@ -138,7 +149,7 @@ def test_redacted_html_shares_aliases_and_is_checked(case_dir: Path) -> None:
 
     rendered = analyse(case_dir / "raw", "privacy").render(redact=True)
     assert PRIVATE not in rendered.html and "BankStatementSyncWorker" not in rendered.html
-    alias = re.search(r"Unlisted app [0-9a-f]{6}", rendered.markdown)
+    alias = re.search(r"Installed app [0-9a-f]{6}", rendered.markdown)
     assert alias and alias.group(0) in rendered.html  # one render, one set of aliases
 
 

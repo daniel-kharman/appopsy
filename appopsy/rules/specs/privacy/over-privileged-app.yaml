@@ -28,7 +28,7 @@ source:
   title: No external source for a cut-off
   checked: 2026-11-01
   note: >
-    This rule has no threshold on purpose. There is no published guidance on how
+    There is no published guidance on how
     many sensitive permissions make an app "over-privileged", so appopsy doesn't
     pick a number: it ranks apps by the number of kinds of access allowed, then by
     how many are allowed at any time, then by how many are full rather than partial,

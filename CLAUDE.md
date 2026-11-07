@@ -177,9 +177,11 @@ rationale, benign_explanations, remediation):
    A spec may declare extra `severities:` its function picks per finding.
 
 Headline (`build.headline`): one sentence per kind of finding, concern first,
-naming at most three apps then "and N more". The sensor rules split by sensor
-(and camera/microphone by visible vs background use), so different sensors are
-never merged across apps in one clause.
+naming at most three apps then "and N more". The sensor rules group apps by the
+exact set of sensors they used (camera/microphone also by visible vs background
+use), so one app's sensors share a sentence ("the Google app used the microphone
+and the camera from a foreground service") but an app is never credited with a
+sensor it didn't use.
 
 Report rules: every "What you can do" app line gives a concrete step (a Settings
 path) or is omitted, and never suggests narrowing an app's core-function access
@@ -200,7 +202,9 @@ Rules engine (`appopsy/rules/`):
   report can cite raw lines. Parsers record line numbers for this.
 - **System apps are framed centrally** (`make_finding`): `classify()` splits system
   packages into `preinstalled` (has a launcher icon: Maps, Phone) and `system`
-  (platform components: android, Play services, Android System Intelligence).
+  (platform components: android, Play services, Android System Intelligence;
+  `PLATFORM_WITH_ICON` in `rules/case.py`, e.g. Settings, counts as a platform
+  component despite its icon).
   Preinstalled apps are framed like installed ones, marked "came with the phone".
   Findings about platform components go to the "system" section at the pack's
   lowest severity, never alongside apps. `hiddenFromAppOps` location requests
@@ -212,8 +216,9 @@ single self-contained HTML file (inline CSS; no scripts, fonts or anything loade
 from the network, so opening a report contacts nobody; autoescaped). Summary table, findings by severity, per-app detail, and a "what you can
 do" section (e.g. set battery to Restricted, change permission to "Only while
 using"). `--redact` (`appopsy/report/redaction.py`) writes a shareable copy:
-apps that aren't system packages or in the bundled name map are shown as
-"Unlisted app <id>", the id an HMAC under a key made fresh per render (not
+every app the user installed, however well known, is shown as "Installed app
+<id>"; only system components and apps that came with the phone keep their names
+(no name list makes an installed app public), the id an HMAC under a key made fresh per render (not
 reversible by hashing popular names; two reports can't be linked), and their
 job, alarm and request names are hidden unless a public app in the same report
 shows the same name. Times become days relative to collection ("today", "3 days
@@ -231,8 +236,9 @@ rule sections; system components are one table, a row per finding, with notes
 schedule are labelled with their library and listed once in a "Shared job
 libraries" table; repeated jobs within an app merge with a count. Markdown links
 use GitHub heading slugs (`markdown.resolve_anchors`); in HTML, appendices and
-tables over 10 rows fold into `<details>` (no scripts). `docs/sample-report.{md,html}` is generated from capture-5 with
-`--redact`; a test fails when it's stale.
+tables over 10 rows fold into `<details>` (no scripts). `docs/sample-report.{md,html}` is generated from capture-5, redacted, by
+`scripts/make_sample_report.py` (a fixed alias key, for the sample only; real
+redacted reports use a fresh key per render); a test fails when it's stale.
 
 ## Phase 2 — `appopsy watch`
 
