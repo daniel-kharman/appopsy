@@ -146,6 +146,12 @@ The hooks are checked into `.githooks/`:
 `git commit --no-verify` / `git push --no-verify` skip them; don't, unless you know
 why a check is wrong and fix the check.
 
+Two developer commands are left out of `appopsy --help` because they're only for
+building test fixtures: `appopsy redact-fixture` (redact a capture before it's
+added to `tests/fixtures/`, and `--check` to scan for anything left) and
+`appopsy mask` (print a raw capture with your own apps masked, for exploring it).
+`appopsy <command> --help` still documents each.
+
 ## Contributing
 
 Rules live in `appopsy/rules/specs/privacy/` and `appopsy/rules/specs/security/`:
