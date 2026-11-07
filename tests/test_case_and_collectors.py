@@ -165,6 +165,8 @@ def test_audit_cli_creates_case(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
         assert stat.S_IMODE(path.stat().st_mode) == 0o600
     assert stat.S_IMODE(report.parent.stat().st_mode) == 0o700
     assert f"Written: {report}" in result.output
+    html = (case_dir / "report" / "report.html").resolve()
+    assert f"Open your report: {html}" in result.output  # one clear line, last
 
 
 def test_audit_refuses_an_unknown_pack_before_touching_the_phone(

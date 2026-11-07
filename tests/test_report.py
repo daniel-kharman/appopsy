@@ -434,3 +434,27 @@ def test_headline_attempts_are_one_sentence_per_sensor() -> None:
         "location in the background and were refused, because your settings allow it only "
         "while the app is in use.",
     ]
+
+
+def test_report_and_audit_announce_files_the_same_way(tmp_path: Path) -> None:
+    case = tmp_path / "case"
+    shutil.copytree(CAPTURES / "capture-5", case / "raw")
+    out = CliRunner().invoke(app, ["report", str(case)]).output
+    md, html = case / "report" / "report.md", (case / "report" / "report.html")
+    assert out.splitlines() == [
+        f"Written: {md}",
+        f"Written: {html}",
+        f"Open your report: {html.resolve()}",
+    ]
+    shared = CliRunner().invoke(app, ["report", str(case), "--redact"]).output
+    assert f"Open your report: {(case / 'report' / 'report-redacted.html').resolve()}" in shared
+
+
+def test_developer_commands_are_hidden_but_work() -> None:
+    runner = CliRunner()
+    listing = runner.invoke(app, ["--help"]).output
+    for shown in ("devices", "audit", "report"):
+        assert shown in listing
+    for hidden in ("redact-fixture", "mask"):
+        assert hidden not in listing
+        assert runner.invoke(app, [hidden, "--help"]).exit_code == 0

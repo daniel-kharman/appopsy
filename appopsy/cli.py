@@ -226,11 +226,7 @@ def audit(
         except RedactionError as exc:
             err_console.print(f"[red]Error:[/red] {exc}")
             raise typer.Exit(1) from exc
-    for path in outputs:
-        console.print(f"Written: {path}")
-    if analysis.warnings:
-        console.print(f"[yellow]{analysis.warnings} line(s) couldn't be parsed[/yellow]; "
-                      "see the report.")  # fmt: skip
+    _announce(outputs, analysis.warnings)
 
 
 @app.command()
@@ -267,12 +263,13 @@ def report(
     analysis = report_run.analyse(raw_dir, pack)
     try:
         rendered = analysis.render(redact=redact)
+        written: list[Path] = []
         if out is None and default_out is not None:  # a case folder: both formats
             md_name = report_run.REDACTED_NAME if redact else report_run.MARKDOWN_NAME
             html_name = report_run.REDACTED_HTML_NAME if redact else report_run.HTML_NAME
             for name, text in ((md_name, rendered.markdown), (html_name, rendered.html)):
                 report_run.write_private(default_out.with_name(name), text)
-                console.print(f"Report written to {default_out.with_name(name)}")
+                written.append(default_out.with_name(name))
         else:
             html = out is not None and out.suffix.lower() in (".html", ".htm")
             text = rendered.html if html else rendered.markdown
@@ -280,18 +277,32 @@ def report(
                 sys.stdout.write(text)
             else:
                 report_run.write_private(out, text)
-                console.print(f"Report written to {out}")
+                written.append(out)
     except RedactionError as exc:
         err_console.print(f"[red]Error:[/red] {exc}")
         raise typer.Exit(1) from exc
-    warnings = analysis.warnings
+    _announce(written, analysis.warnings)
+
+
+def _announce(paths: list[Path], warnings: int) -> None:
+    """What `audit` and `report` wrote, in the same words: each file, then the one to
+    open (the full HTML report if there is one, else the redacted copy). Parse
+    warnings go to stderr, so a report printed to stdout stays clean."""
+    for path in paths:
+        console.print(f"Written: {path}", soft_wrap=True)
+    pages = [p for p in paths if p.suffix == ".html"]
+    page = next((p for p in pages if p.name == report_run.HTML_NAME), pages[0] if pages else None)
+    if page is not None:
+        console.print(f"[bold]Open your report: {page.resolve()}[/bold]", soft_wrap=True)
     if warnings:
         err_console.print(
             f"[yellow]{warnings} line(s) couldn't be parsed[/yellow]; see the report."
         )
 
 
-@app.command("mask")
+# Developer commands: hidden from `appopsy --help` (they're for building test
+# fixtures, see the README's Development section) but they work as before.
+@app.command("mask", hidden=True)
 def mask(
     paths: Annotated[
         list[Path] | None,
@@ -324,7 +335,7 @@ def mask(
         sys.stdout.write(mask_apps(text, names, allowed))
 
 
-@app.command("redact-fixture")
+@app.command("redact-fixture", hidden=True)
 def redact_fixture(
     sources: Annotated[
         list[Path],
