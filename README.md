@@ -163,6 +163,10 @@ Parser fixtures from
 different Android versions and manufacturers are especially valuable; please run
 `appopsy redact-fixture` on any dump before submitting it.
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) before opening an issue or pull request, and
+never paste raw dumps, case folders or unredacted reports. This project follows
+the [Contributor Covenant](CODE_OF_CONDUCT.md).
+
 ## Credits
 
 App names for widely used apps come from [Wikidata](https://www.wikidata.org),
