@@ -7,7 +7,8 @@
 #
 # `notes` add one line under a finding for that package and rule.
 # `core` lists the kinds of access (appopsy.labels.ACCESS_CATEGORIES keys) the app's
-# main job needs; "What you can do" doesn't suggest narrowing them.
+# main job needs; "What you can do" never suggests narrowing or removing them.
+# `article: true`: the name reads as a common noun ("the Google app") in sentences.
 
 com.facebook.katana: {name: Facebook}
 com.facebook.orca: {name: Messenger}
@@ -34,8 +35,9 @@ com.android.chrome: {name: Chrome}
 com.android.settings: {name: Settings}
 com.android.vending: {name: Google Play Store}
 com.google.android.GoogleCamera: {name: Pixel Camera, core: [camera, microphone]}
+com.google.android.apps.adm: {name: Find My Device, core: [location]}
 com.google.android.apps.docs: {name: Google Drive}
-com.google.android.apps.maps: {name: Google Maps}
+com.google.android.apps.maps: {name: Google Maps, core: [location]}
 com.google.android.apps.messaging: {name: Messages, core: [sms, contacts]}
 com.google.android.apps.nbu.files: {name: Files by Google}
 com.google.android.apps.photos: {name: Google Photos, core: [photos_videos]}
@@ -49,6 +51,6 @@ com.google.android.contacts: {name: Contacts, core: [contacts]}
 com.google.android.deskclock: {name: Clock}
 com.google.android.dialer: {name: Phone, core: [contacts, call_log, microphone]}
 com.google.android.gm: {name: Gmail}
-com.google.android.googlequicksearchbox: {name: Google}
+com.google.android.googlequicksearchbox: {name: Google app, article: true}
 com.google.android.keep: {name: Google Keep}
 com.google.android.youtube: {name: YouTube}

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import importlib.util
 import re
+import shutil
 from pathlib import Path
 
 import pytest
@@ -172,14 +173,20 @@ def test_exemption_covers_only_that_path(tree: tuple[Path, set[str]]) -> None:
 # --- display only -------------------------------------------------------------------
 
 
-def test_names_are_shown_but_redaction_still_aliases() -> None:
-    """A widely used app from the names file is named in the owner's report but still
-    aliased in a redacted copy: which popular apps you have is personal."""
+def test_wikidata_named_installed_app_is_aliased_when_redacted(tmp_path: Path) -> None:
+    """An installed app whose friendly name comes from the Wikidata file is named in
+    the owner's report but aliased in a redacted copy: which apps you installed is
+    personal however well known they are."""
     package, name = next(
         (p, n) for p, n in sorted(app_names.names().items()) if p not in known_apps()
     )
     assert app_label(package) == f"{name} ({package})"
-    case = CaseData(CAPTURE)
+    raw = tmp_path / "raw"
+    shutil.copytree(CAPTURE, raw)
+    with (raw / "pm-list-packages-3p.txt").open("a") as fh:
+        fh.write(f"package:{package}  installer=com.android.vending\n")
+    case = CaseData(raw)
+    assert case.classify(package) == "user_installed"
     (spec,) = [s for s in load_rules() if s.id == "over-privileged-app"]
     f = Finding(
         rule_id=spec.id, pack="privacy", severity="info", title=spec.title, package=package,
@@ -187,10 +194,10 @@ def test_names_are_shown_but_redaction_still_aliases() -> None:
         facts={"rank": 1, "of": 1, "checked": 9, "count": 0, "categories": {}, "allowed": {}},
     )  # fmt: skip
     assert f"{name} ({package})" in render_markdown(build_report(case, [spec], [f]))
-    redaction = plan(case, [f], public=set(known_apps()))
-    assert package in redaction.aliases
+    redaction = plan(case, [f])
     shared = render_markdown(build_report(case, [spec], [f], redaction=redaction))
     assert package not in shared and redaction.aliases[package] in shared
+    assert not re.search(rf"(?<![\w]){re.escape(name)}(?![\w])", shared.split("## How this")[0])
 
 
 def test_report_credits_wikidata() -> None:

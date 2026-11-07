@@ -67,10 +67,11 @@ Collected {{ r.collected_label }}, with appopsy {{ r.version }}.</p>
 
 {% if r.redacted is not none %}
 <div class="redacted"><strong>Redacted copy for sharing.</strong>
-{% if r.redacted %}{{ r.redacted }} app(s) that aren't on appopsy's public list are shown as
-"Unlisted app" with an id that changes every time a report is made, and the names of their
-jobs and alarms are hidden. System apps and well-known apps keep their names.
-{% else %}Every app in it is a system app or a well-known app, so all keep their names.
+{% if r.redacted %}Every app you installed ({{ r.redacted }}) is shown as "Installed app" with
+an id that changes every time a report is made, and the names of its jobs and alarms are
+hidden. Only system components and apps that came with the phone keep their names.
+{% else %}Every app in it is a system component or came with the phone, so all keep their
+names.
 {% endif %}Times are shown as days before collection. Check it before you share it.</div>
 {% endif %}
 

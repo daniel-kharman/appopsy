@@ -27,7 +27,7 @@ source:
   title: Severity by sensor, decided for appopsy
   checked: 2026-11-01
   note: >
-    No threshold: one background delivery is enough to report. Severity follows the
+    One background delivery is enough to report. Severity follows the
     sensor and how visible the use was: concern for the microphone or camera used
     in the background or cached state (bg, cch), where nothing on screen shows it;
     notable for the microphone or camera used only from a foreground service

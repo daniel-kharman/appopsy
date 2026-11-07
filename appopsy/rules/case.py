@@ -37,6 +37,10 @@ from appopsy.rules.engine import AppClass, EvidenceRef
 
 T = TypeVar("T")
 
+# Platform components that also have a launcher icon: still part of Android, not
+# apps people choose (Settings).
+PLATFORM_WITH_ICON = frozenset({"com.android.settings"})
+
 
 class CaseData:
     def __init__(self, raw_dir: Path) -> None:
@@ -129,6 +133,8 @@ class CaseData:
             return "user_installed"
         info = self.packages.get(package)
         if package in self.system or package == "android" or (info is not None and info.is_system):
+            if package in PLATFORM_WITH_ICON:
+                return "system"
             return "preinstalled" if package in self.launcher else "system"
         return "unknown"
 

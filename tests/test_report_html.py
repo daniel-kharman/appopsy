@@ -47,7 +47,7 @@ def test_same_content_as_the_markdown_report(html: str) -> None:
     assert "<strong>Google Maps (com.google.android.apps.maps)</strong> used your precise" in html
     assert "<td>precise location (FINE_LOCATION)</td>" in html
     assert "Settings &gt; Apps &gt; (the app) &gt; App battery usage" in html
-    assert "Apps and their jobs: Facebook (14), Messenger (3)." in html
+    assert "Most jobs first: Facebook (14), Messenger (3)." in html
     assert '<a href="#rule-background-sensor-attempt-notable">' in html  # per-app links
     assert '<h4 id="rule-background-sensor-attempt-notable">' in html
     assert 'class="badge sev-notable">notable</span>' in html

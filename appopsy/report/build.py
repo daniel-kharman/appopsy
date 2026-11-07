@@ -415,6 +415,7 @@ RULE_ORDER = (
     "over-privileged-app",
 )
 MAX_NAMED = 3
+BATTERY_TOP = 5  # apps named in the battery step; the rest are counted
 
 
 @dataclass
@@ -424,69 +425,108 @@ class _Line:
     text: str
 
 
-def _apps(names: list[str]) -> tuple[str, bool]:
+def prose_name(package: str) -> str:
+    """The app's name as it reads in a sentence: "the Google app" for names marked
+    `article: true` in apps.yaml (never for a redacted alias)."""
+    name = app_name(package)
+    if not _alias(package) and known_apps().get(package, {}).get("article"):
+        return f"the {name}"
+    return name
+
+
+def _sentence(text: str) -> str:
+    """Capitalise a sentence that starts with "the Google app"; app and package names
+    keep their own case ("org.example.app", "eBay")."""
+    return "T" + text[1:] if text.startswith("the ") else text
+
+
+def _apps(fs: list[Finding]) -> tuple[str, bool]:
     """ "A, B, C and 5 more" (at most three named) and whether it's plural."""
-    names = sorted(names, key=str.lower)
+    names = sorted(
+        (prose_name(f.package or "") for f in fs), key=lambda n: n.lower().removeprefix("the ")
+    )
     return sample(names, MAX_NAMED), len(names) > 1
 
 
-def _by_sensor(
-    fs: list[Finding], ops_of: Callable[[Finding], set[str]]
-) -> list[tuple[int, str, list[Finding]]]:
-    """(sensor index, phrase, findings) for each sensor kind some finding involves."""
-    out = []
-    for i, (_, ops, phrase) in enumerate(SENSOR_KINDS):
-        group = [f for f in fs if ops_of(f) & ops]
-        if group:
-            out.append((i, phrase, group))
-    return out
+def _sensor_sets(
+    fs: list[Finding], kinds_of: Callable[[Finding], set[int]]
+) -> list[tuple[tuple[int, ...], list[Finding]]]:
+    """Group findings by the exact set of sensor kinds (indexes into SENSOR_KINDS)
+    each involves, so one sentence covers apps that did the same thing and never
+    implies an app used a sensor it didn't."""
+    groups: dict[tuple[int, ...], list[Finding]] = defaultdict(list)
+    for f in fs:
+        if kinds := tuple(sorted(kinds_of(f))):
+            groups[kinds].append(f)
+    return sorted(groups.items())
+
+
+def _kinds(ops: set[str], allowed: tuple[str, ...]) -> set[int]:
+    return {
+        i for i, (key, kind_ops, _) in enumerate(SENSOR_KINDS) if key in allowed and ops & kind_ops
+    }
+
+
+def _phrase(kinds: tuple[int, ...]) -> str:
+    return join([SENSOR_KINDS[i][2] for i in kinds])
 
 
 def _headline_background_use(fs: list[Finding], case: CaseData) -> list[_Line]:
     rule = RULE_ORDER.index("background-sensor-use")
     lines = []
+    av = ("microphone", "camera")
 
-    def uses(f: Finding, ops: frozenset[str]) -> list[dict[str, Any]]:
-        return [u for u in f.facts["uses"] if u["op"] in ops]
+    def ops_in(f: Finding, hidden: bool) -> set[str]:
+        """Camera/microphone ops used in the background proper (hidden) or only from a
+        foreground service (visible)."""
+        return {
+            u["op"] for u in f.facts["uses"]
+            if bool(set(u["states"]) & {"bg", "cch"}) is hidden
+        }  # fmt: skip
 
-    for i, (key, ops, phrase) in enumerate(SENSOR_KINDS):
-        group = [f for f in fs if uses(f, ops)]
-        if not group:
-            continue
-        if key in ("microphone", "camera"):
-            hidden = [
-                f for f in group if any(set(u["states"]) & {"bg", "cch"} for u in uses(f, ops))
-            ]
-            visible = [f for f in group if f not in hidden]
+    for variant, hidden in ((0, True), (1, False)):
+        # An op seen hidden for an app counts as hidden, not also as visible.
+        def kinds_of(f: Finding, hidden: bool = hidden) -> set[int]:
+            mine = _kinds(ops_in(f, hidden), av)
+            return mine if hidden else mine - _kinds(ops_in(f, True), av)
+
+        for kinds, group in _sensor_sets(fs, kinds_of):
+            apps, _ = _apps(group)
             if hidden:
-                apps, _ = _apps([app_name(f.package or "") for f in hidden])
-                lines.append(_Line(
-                    "concern", (rule, i, 0),
-                    f"{apps} used {phrase} in the background, where nothing on screen shows it.",
-                ))  # fmt: skip
-            if visible:
-                apps, _ = _apps([app_name(f.package or "") for f in visible])
-                lines.append(_Line(
-                    "notable", (rule, i, 1),
-                    f"{apps} used {phrase} from a foreground service, which shows a "
-                    "notification while it runs.",
-                ))  # fmt: skip
-        else:
-            apps, _ = _apps([app_name(f.package or "") for f in group])
+                text = (
+                    f"{apps} used {_phrase(kinds)} in the background, where nothing on screen "
+                    "shows it."
+                )
+            else:
+                text = (
+                    f"{apps} used {_phrase(kinds)} from a foreground service, which shows a "
+                    "notification while it runs."
+                )
+            lines.append(_Line("concern" if hidden else "notable", (rule, kinds[0], variant),
+                               _sentence(text)))  # fmt: skip
+    for i, (key, ops, phrase) in enumerate(SENSOR_KINDS):
+        if key in av:
+            continue
+        group = [f for f in fs if any(u["op"] in ops for u in f.facts["uses"])]
+        if group:
+            apps, _ = _apps(group)
             received = "body-sensor data" if key == "body_sensors" else phrase
-            lines.append(_Line(
-                "notable", (rule, i, 0), f"{apps} received {received} while not on screen."
-            ))  # fmt: skip
+            text = _sentence(f"{apps} received {received} while not on screen.")
+            lines.append(_Line("notable", (rule, i, 0), text))
     return lines
 
 
 def _headline_attempts(fs: list[Finding], case: CaseData) -> list[_Line]:
     rule = RULE_ORDER.index("background-sensor-attempt")
+    every = tuple(key for key, _, _ in SENSOR_KINDS)
     lines = []
-    for i, phrase, group in _by_sensor(fs, lambda f: {a["op"] for a in f.facts["attempts"]}):
-        ops = SENSOR_KINDS[i][1]
-        attempts = [a for f in group for a in f.facts["attempts"] if a["op"] in ops]
-        apps, plural = _apps([app_name(f.package or "") for f in group])
+
+    def kinds_of(f: Finding) -> set[int]:
+        return _kinds({a["op"] for a in f.facts["attempts"]}, every)
+
+    for kinds, group in _sensor_sets(fs, kinds_of):
+        attempts = [a for f in group for a in f.facts["attempts"]]
+        apps, plural = _apps(group)
         why = (
             "your settings allow it only while the app is in use"
             if all(a["mode"] == "foreground" for a in attempts)
@@ -494,14 +534,15 @@ def _headline_attempts(fs: list[Finding], case: CaseData) -> list[_Line]:
         )
         verb = "were" if plural else "was"
         lines.append(_Line(
-            group[0].severity, (rule, i, 0),
-            f"{apps} tried to use {phrase} in the background and {verb} refused, because {why}.",
+            group[0].severity, (rule, kinds[0], len(kinds)),
+            _sentence(f"{apps} tried to use {_phrase(kinds)} in the background and {verb} "
+                      f"refused, because {why}."),
         ))  # fmt: skip
     return lines
 
 
 def _headline_wakeups(fs: list[Finding], case: CaseData) -> list[_Line]:
-    apps, _ = _apps([app_name(f.package or "") for f in fs])
+    apps, _ = _apps(fs)
     limit = fs[0].facts["threshold"]
     return [_Line(
         fs[0].severity, (RULE_ORDER.index("chatty-wakeups"), 0, 0),
@@ -615,7 +656,11 @@ def _action(f: Finding) -> str | None:
                 "often it can wake the phone."
             )
         case "background-sensor-attempt":
-            keys = sorted({k for a in f.facts["attempts"] if (k := _category_of(a["op"]))})
+            keys = sorted(
+                {k for a in f.facts["attempts"] if (k := _category_of(a["op"])) and k not in core}
+            )
+            if not keys:
+                return None  # what it tried to use is what the app is for
             perms = join([PERMISSION[k] for k in keys])
             return (
                 f"{name}: {settings} > Permissions > {perms}: choose \u201cDon't allow\u201d if "
@@ -661,10 +706,12 @@ def _jobs_action(fs: list[Finding]) -> str | None:
     mine = sorted((f for f in fs if f.severity != "info"), key=lambda f: -len(f.facts["jobs"]))
     if not mine:
         return None
-    apps = ", ".join(f"{app_name(f.package or '')} ({len(f.facts['jobs'])})" for f in mine)
+    top = [f"{app_name(f.package or '')} ({len(f.facts['jobs'])})" for f in mine[:BATTERY_TOP]]
+    more = len(mine) - len(top)
+    apps = ", ".join(top) + (f" and {more} more (see the table above)" if more else "")
     return (
         "Settings > Apps > (the app) > App battery usage: choose Restricted to defer its "
-        f"background jobs. Apps and their jobs: {apps}."
+        f"background jobs. Most jobs first: {apps}."
     )
 
 
@@ -698,11 +745,21 @@ def _compact_access(fs: list[Finding]) -> Table | None:
     """The access ranking as one table: kinds of access and how many at any time."""
     rows = []
     for f in sorted(fs, key=lambda f: f.facts["rank"]):
+        if not f.facts["count"]:
+            continue  # collapsed into one row below
         cats = f.facts.get("categories", {})
         counted = [CATEGORY[k].name.lower() for k in cats if (k, cats[k]["scope"]) not in FRIENDLY]
-        kinds = f"{len(counted)}: {', '.join(counted)}" if counted else "none"
+        kinds = f"{len(counted)}: {', '.join(counted)}"
         rows.append(
             [app_label(f.package or ""), kinds, str(len(_any_time(f))) if _any_time(f) else ""]
+        )
+    if none := [f for f in fs if not f.facts["count"]]:
+        rows.append(
+            [
+                f"{len(none)} more {'app' if len(none) == 1 else 'apps'} (listed in the appendix)",
+                "none",
+                "",
+            ]
         )
     return table(["App", "Kinds of access", "At any time"], rows)
 
@@ -821,12 +878,18 @@ def _appendix(case: CaseData, main: list[Finding], findings_all: list[Finding]) 
     for f in main:
         by_rule[f.rule_id].append(f)
 
-    access = [_view(case, f) for f in sorted(by_rule[ACCESS_RULE], key=_sort_key) if _any_time(f)]
-    if access:
+    ranked = sorted(by_rule[ACCESS_RULE], key=_sort_key)
+    access = [_view(case, f) for f in ranked if _any_time(f)]
+    items = [AppendixItem(v.app, v.rest.lstrip(": "), v.tables) for v in access]
+    if none := [f for f in ranked if not f.facts["count"]]:
+        names = ", ".join(sorted((app_label(f.package or "") for f in none), key=str.lower))
+        items.append(AppendixItem("No sensitive access", f"{len(none)}: {names}."))
+    if items:
         out.append(Appendix(
-            "access", "Sensitive access at any time",
-            "Every app allowed at least one kind of sensitive access at any time, in rank order.",
-            [AppendixItem(v.app, v.rest.lstrip(": "), v.tables) for v in access],
+            "access", "Sensitive access",
+            "Every app allowed at least one kind of sensitive access at any time, in rank "
+            "order, then the apps allowed none of it.",
+            items,
         ))  # fmt: skip
 
     sensors = sorted(by_rule[SENSOR_SUMMARY_RULE], key=lambda f: app_name(f.package or "").lower())

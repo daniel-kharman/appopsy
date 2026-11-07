@@ -172,6 +172,16 @@ def background_sensor_attempt(case: CaseData, spec: RuleSpec) -> list[Finding]:
     return findings
 
 
+# Why "only while using the app" can still show background use, so readers don't
+# conclude their setting failed: appops waits a few seconds before moving an app to
+# the background state after you leave it (the settle times in `dumpsys appops`),
+# and a foreground service the app started while on screen keeps its access.
+IN_USE_NOTE = (
+    " Your setting is \u201conly while using the app\u201d, and it still works: Android "
+    "lets an app keep using a sensor for a few seconds after you leave it, and a "
+    "foreground service the app started while you were using it (navigation, a call, "
+    "a recording) keeps the access while it runs."
+)
 # Not on screen: background, cached, or a foreground service (CLAUDE.md, UID states).
 OFF_SCREEN_STATES = ("bg", "cch", "fgsvc")
 CONCERN_OPS = frozenset({"CAMERA", "RECORD_AUDIO"})
@@ -207,6 +217,10 @@ def background_sensor_use(case: CaseData, spec: RuleSpec) -> list[Finding]:
             # foreground service only, Android shows a notification and the privacy
             # indicator while it runs, so it's notable like location.
             av = [u for u in uses if u["op"] in CONCERN_OPS]
+            # Allowed "only while in use", yet used in the background or cached state.
+            in_use_only = any(
+                u["mode"] == "foreground" and set(u["states"]) & {"bg", "cch"} for u in uses
+            )
             hidden_av = any(set(u["states"]) & {"bg", "cch"} for u in av)
             evidence: list[EvidenceRef] = []
             for op, used in items:
@@ -224,8 +238,14 @@ def background_sensor_use(case: CaseData, spec: RuleSpec) -> list[Finding]:
                         "while Android shows a notification and the privacy indicator."
                         if av and not hidden_av
                         else ""
-                    ),
-                    facts={"uid": uid.uid, "uses": uses, "camera_mic_in_background": hidden_av},
+                    )
+                    + (IN_USE_NOTE if in_use_only else ""),
+                    facts={
+                        "uid": uid.uid,
+                        "uses": uses,
+                        "camera_mic_in_background": hidden_av,
+                        "in_use_setting_background_use": in_use_only,
+                    },
                     evidence=evidence,
                     severity="concern" if hidden_av else None,
                 )
