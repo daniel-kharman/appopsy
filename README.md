@@ -49,21 +49,43 @@ against me?"*
 - **Explain, don't alarm.** Every finding says what was seen, why it matters, what
   is probably benign about it, and what you can do.
 
-## Quick start (planned)
+## Quick start
+
+Needs Python 3.12+ and [uv](https://docs.astral.sh/uv/). appopsy is not on PyPI yet.
 
 ```bash
-# Requirements: Python 3.12+, uv, and adb (Android platform-tools)
-# On the phone: enable Developer options and USB debugging, then authorise this computer
+uv tool install git+https://github.com/daniel-kharman/appopsy
+# or: git clone https://github.com/daniel-kharman/appopsy && cd appopsy && uv tool install .
+```
 
-uv tool install appopsy        # not yet published
-appopsy devices                # confirm the phone is connected and authorised
+### Set up your phone and computer
+
+1. Install adb: on macOS `brew install --cask android-platform-tools`; otherwise
+   Google's [SDK Platform-Tools](https://developer.android.com/tools/releases/platform-tools).
+2. On the phone, enable Developer options (Settings > About phone: tap **Build
+   number** 7 times), then turn on **USB debugging** in Settings > System >
+   Developer options.
+3. Plug the phone in and accept the **Allow USB debugging?** prompt on it.
+4. Run `appopsy devices`: your phone should show as **ready**.
+
+When you're done, turn USB debugging off again.
+
+### Run it
+
+```bash
+appopsy devices                # confirm the phone is connected and ready
 appopsy audit                  # collect, run the privacy rules, write the report:
                                #   ./cases/<timestamp>-<model>/report/report.{md,html}
-appopsy audit --pack all       # privacy and security rules
+appopsy audit --pack all       # privacy plus security (coming: no security rules yet)
 appopsy report cases/<case>    # re-render a case later, without the phone
 appopsy report cases/<case> --redact   # a copy you can share: report-redacted.{md,html}
-appopsy watch --app com.example.app   # record changes over time
 ```
+
+### Roadmap
+
+- `appopsy watch`: record changes over time, to show patterns a snapshot can't.
+- Security pack (Phase 3): stalkerware and persistence checks.
+- `--llm` (Phase 4): an optional plain-language summary of the parsed findings.
 
 ## Sample report
 
