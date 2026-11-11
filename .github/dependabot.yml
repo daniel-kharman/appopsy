@@ -1,4 +1,5 @@
-# Monthly dependency updates, one grouped pull request per ecosystem.
+# Monthly version updates and security updates, each grouped into one pull
+# request per ecosystem.
 # Ecosystem names from the Dependabot options reference (docs.github.com).
 version: 2
 updates:
@@ -9,6 +10,10 @@ updates:
     open-pull-requests-limit: 5
     groups:
       python:
+        applies-to: version-updates
+        patterns: ["*"]
+      python-security:
+        applies-to: security-updates
         patterns: ["*"]
 
   - package-ecosystem: "github-actions"
@@ -18,4 +23,8 @@ updates:
     open-pull-requests-limit: 5
     groups:
       actions:
+        applies-to: version-updates
+        patterns: ["*"]
+      actions-security:
+        applies-to: security-updates
         patterns: ["*"]

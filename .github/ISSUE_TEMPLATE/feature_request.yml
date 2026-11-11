@@ -1,0 +1,28 @@
+name: Feature or rule request
+description: An idea for appopsy, such as a new rule, data source or report change.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        > [!WARNING]
+        > **Never paste raw dumps, case folders or unredacted reports here.** If an example helps, run `appopsy report <case> --redact`, **read the redacted copy first**, and paste only the lines you need.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What would you like appopsy to show or do?
+      description: The question it should answer for someone checking their phone.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Where the data comes from
+      description: Which Android output shows it, if you know (for example `dumpsys appops`). Describe its shape; don't paste your own.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy check
+      options:
+        - label: I haven't pasted raw dumps, case folders or unredacted reports.
+          required: true
