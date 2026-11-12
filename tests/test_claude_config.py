@@ -98,6 +98,8 @@ ROUTINE = [
     "git commit -am 'Fix #12: a {brace} and $HOME, literally'",
     "git switch -c fix-foo origin/main",
     "git checkout -b feature-x",
+    "git switch -c fix-foo origin/main --no-track",
+    "git switch -c fix-foo --no-track origin/main",
     "git status\ngit diff --stat",
     "cat ~/notes.txt",
     "echo hi",
@@ -1067,6 +1069,11 @@ def test_sandbox_is_on_strict_and_offline() -> None:
         assert path in filesystem["denyRead"], path
     for key in ("allowRead", "allowWrite", "disabled"):
         assert key not in filesystem, key
+    # Nothing outside the sandbox may run code that sandboxed code could change: the
+    # excluded push runs the pre-push hook, which runs .venv, appopsy/ and scripts/.
+    for path in ("./.venv", "./.githooks", "./.git/config", "./.git/hooks", "./appopsy",
+                 "./scripts", "./pyproject.toml", "./uv.lock"):  # fmt: skip
+        assert path in filesystem["denyWrite"], path
     for key in ("allowAppleEvents", "enableWeakerNetworkIsolation"):
         assert key not in sandbox, key
 
@@ -1078,8 +1085,6 @@ def test_sandbox_exclusions_are_the_narrow_commands_that_need_github_or_the_phon
         "gh pr create *",
         "gh pr view *",
         "gh api *",
-        "uv run appopsy devices",
-        "uv run appopsy audit *",
     ]
     # Every git/gh exclusion is also a pre-approved, guarded command, so it can't
     # run anything the guard hasn't seen.

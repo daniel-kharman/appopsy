@@ -180,31 +180,35 @@ programs), in an OS-level sandbox (Seatbelt on macOS):
   can't make an allowlist strict (unlisted hosts follow the permission mode,
   and auto mode lets them through; `strictAllowlist` is user or managed only),
   but a deny list holds in every mode.
-- **Writes** go only to the repo and temp. Claude Code itself also protects
-  `.claude/settings.json`, `.claude/hooks/` and `.claude/skills/` from shell
-  writes.
 - **Reads** of credentials (`~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.netrc`,
   `~/.git-credentials`, `~/.config/gh`, `~/.docker`, `~/.kube`, the keychains)
   and of the repo's `cases/` and `reports/` are denied.
-- **No escape:** `allowUnsandboxedCommands: false` (Claude can't retry a
-  blocked command outside the sandbox), and `failIfUnavailable: true` (no
-  sandbox, no session).
-- **Six exclusions** run outside it, because they need GitHub or the phone:
-  `git push -u origin *`, `gh pr create *`, `gh pr view *`, `gh api *`,
-  `uv run appopsy devices`, `uv run appopsy audit *`. They're excluded only
-  when issued alone: anything chained to them (`;`, `&&`, a pipe) keeps the
-  whole line sandboxed, so an exclusion can't carry a second command out.
-  Untrusted code can't trigger them; only commands Claude issues match.
-- **uv** uses a repo-local cache (`UV_CACHE_DIR=.uv-cache`, offline): sandboxed
+- **Writes** go only to the repo and temp, and not to what runs outside the
+  sandbox: `.venv/`, `.githooks/`, `.git/config`, `.git/hooks/`, `appopsy/`,
+  `scripts/`, `pyproject.toml` and `uv.lock` are write-denied (Claude Code
+  also protects `.claude/settings.json`, `.claude/hooks/` and `.claude/skills/`).
+  The rule: **nothing outside the sandbox runs code that sandboxed code could
+  have changed.** Claude still edits those files with Edit and Write, which go
+  through the permission rules, not the shell; new branches use `--no-track`
+  because the sandbox can't record an upstream.
+- **No escape:** `allowUnsandboxedCommands: false` (no unsandboxed retries),
+  `failIfUnavailable: true` (no sandbox, no session).
+- **Four exclusions** run outside it because they need GitHub:
+  `git push -u origin *`, `gh pr create *`, `gh pr view *`, `gh api *`. They're
+  excluded only when issued alone: anything chained to them keeps the whole
+  line sandboxed (tested). Only commands Claude issues match; code in the
+  sandbox can't trigger them. The push runs the pre-push hook outside the
+  sandbox, which is why its code (`.githooks/`, `.venv/`, `appopsy/`,
+  `scripts/`) is write-denied inside. Talking to the phone isn't excluded: the
+  maintainer runs `appopsy devices` and `audit` in their own terminal.
+- **uv** uses a repo-local, offline cache (`UV_CACHE_DIR=.uv-cache`): sandboxed
   code must not write the shared `~/.cache/uv` that other projects install
-  from. When dependencies change, the maintainer runs `uv sync` outside the
-  sandbox.
-- `autoAllowBashIfSandboxed: false`: the permission rules and command guard
-  still decide what runs without a prompt. The sandbox contains what runs; it
-  doesn't widen it.
+  from. When dependencies change, the maintainer runs `uv sync` outside.
+- `autoAllowBashIfSandboxed: false`: the permission rules and the command guard
+  still decide what runs without a prompt; the sandbox contains what runs.
 
 The app list stays readable inside the sandbox: `/ship`'s checks and `mask`
-need it. With no network, code that reads it has nowhere to send it.
+need it.
 
 **Why.** The command guard reads command text, and every review found text it
 misread (entry 11). The sandbox is enforced by the operating system on what
@@ -215,26 +219,23 @@ covers code nobody typed: tests, dependencies, git config programs.
 
 | Limit (entry 11) | With the sandbox |
 | --- | --- |
-| `uv run pytest` runs the branch's code with the user's rights and may sync dependencies from the network | **Mostly closed.** That code now has no network, can't write outside the repo and temp, and can't read credentials, `cases/` or `reports/`. It can still read other files (the app list, the rest of the home directory) and change files in the repo; with no network, it has nowhere to send them, and the pre-push scan checks the repo before anything leaves. Dependency syncs no longer happen inside. **Not closed for untrusted branches:** see below. |
-| `appopsy mask` answers "is this one of my apps" | **Remains**, by design. The answer goes to whoever runs the command (the session, or code in the sandbox), and from the sandbox it can't go any further. |
-| Recursive searches reach nested private folders; symlinks and hard links beat the path checks | **Partly closed.** In Bash, the top-level `cases/` and `reports/` can't be read, whatever path or symlink leads there (Seatbelt checks the real path). Hard links, private folders nested elsewhere, and the Read, Grep and Glob tools (which aren't sandboxed) still rely on the guard's path checks. |
-| Programs set in git config or attributes run under read-only git | **Closed** for every git command in Bash: they run sandboxed. **Remains** for the excluded `git push`, whose pre-push hook and config run outside (on the maintainer's own branches). |
-| PR body and commit message files are checked for app names only | **Remains.** `gh pr create` runs outside the sandbox and reads its body file there, so the guard's path rules (a scratchpad `.md`, or a repo file outside private folders) are still the control. Commit message files are read by sandboxed git, so `cases/` is unreadable there. |
-| The guard relies on Claude Code calling it | **Closed for Bash:** the sandbox is enforced by the OS, whatever the guard decides. **Remains** for Read, Grep and Glob (permission rules and the guard only), hooks, and the six exclusions. |
+| `uv run pytest` runs the branch's code with the user's rights and may sync dependencies from the network | **Partly closed.** That code has no network, can't read credentials, `cases/` or `reports/`, can't write outside the repo and temp, and can't change anything that later runs outside the sandbox. It can still read other files (the app list, the rest of the home directory) and write them, encoded, into a file in the repo, which leaves with the next push or PR. The scans look for app names in plain text, not for encoded data, so **the control there is reading the diff before it's pushed** (PRs are reviewed by the maintainer). **Not closed for untrusted branches:** see below. |
+| `appopsy mask` answers "is this one of my apps" | **Remains**, by design. Inside the sandbox the answer can only leave the same way as above. |
+| Recursive searches reach nested private folders; symlinks and hard links beat the path checks | **Partly closed.** In Bash, the top-level `cases/` and `reports/` can't be read by any path (Seatbelt checks the real path). Hard links, private folders nested elsewhere, and the Read, Grep and Glob tools (not sandboxed) still rely on the guard. |
+| Programs set in git config or attributes run under read-only git | **Closed.** Git in Bash runs sandboxed, and `.git/config` and `.git/hooks/` can't be written from the sandbox, so the excluded push can't pick up config planted there. User-level git config (`~/.gitconfig`) isn't writable from the sandbox either. |
+| PR body and commit message files are checked for app names only | **Remains.** `gh pr create` reads its body file outside the sandbox, so the guard's path rules (a scratchpad `.md`, or a repo file outside private folders) are the control, plus reading the PR before merging. |
+| The guard relies on Claude Code calling it | **Closed for Bash:** the OS enforces the sandbox whatever the guard decides. **Remains** for Read, Grep and Glob (permission rules and the guard), hooks, and the four exclusions (permission rules and the guard narrow them). |
 
-**What the sandbox doesn't cover** (and the guard, permission rules or a
-devcontainer must):
-- **Command hooks run outside it, with full access**, and so does any repo code
-  they run (the guard's apps check runs `.venv/bin/appopsy`). The hooks and
-  settings come from the checked-out branch, and a branch's settings can turn
-  the sandbox off. **So the sandbox protects the maintainer's own work, not an
-  untrusted branch**: external contributors' branches only run in a
-  devcontainer (CLAUDE.md).
+**What the sandbox doesn't cover:**
+- **Command hooks run outside it, with full access**, and the hooks and settings
+  come from the checked-out branch; a branch's settings can turn the sandbox
+  off. So the sandbox protects the maintainer's own work, not an untrusted
+  branch: external contributors' branches only run in a devcontainer
+  (CLAUDE.md).
 - Read, Grep, Glob, Edit and Write follow permission rules and the guard, not
   the sandbox.
-- The six excluded commands run with full access when issued alone. Each is
-  narrowed by permission rules and the guard (a feature-branch push, GET-only
-  `gh api`, a checked PR body), and `uv run appopsy audit` only runs when the
-  maintainer starts `/capture-fixture`.
+- Anything committed leaves with the push. The pre-push scans catch app names
+  and fixture identifiers, not arbitrary data, so pushes are reviewed through
+  their PR.
 - On native Windows there is no sandbox; `failIfUnavailable` makes Claude Code
   refuse to start rather than run without it.

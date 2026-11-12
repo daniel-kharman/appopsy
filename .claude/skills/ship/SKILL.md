@@ -20,7 +20,8 @@ merge, never push to `main`, never force-push, never use `--no-verify`.
 
 ## 1. Branch
 
-- If on `main`, create a branch: `git switch -c <kebab-case-summary>`.
+- If on `main`, create a branch: `git switch -c <kebab-case-summary> --no-track`
+  (the sandbox can't write `.git/config`; `git push -u` records the upstream).
 - If on a branch whose PR is already merged or whose upstream is gone
   (`git status -sb` shows `[gone]`), branch again from `origin/main` and carry
   the work over; don't reuse it.

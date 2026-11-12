@@ -453,11 +453,14 @@ Tools:
 - **The security boundary is the Claude Code sandbox** (`sandbox` in
   `.claude/settings.json`; see `docs/decisions.md` entry 12). Bash commands and
   everything they start run in it: no network at all, no writes outside the
-  repo and temp, no reads of credentials, `cases/` or `reports/`. Only
-  `git push -u origin <branch>`, `gh pr create|view`, `gh api`, `uv run appopsy
-  devices` and `uv run appopsy audit` run outside it, and only when issued as a
-  single command (no pipes or `&&`). Dependency changes need `uv sync` outside
-  the sandbox: ask the maintainer to run it. The command guard below is a
+  repo and temp (and not to `.venv/`, `.githooks/`, `.git/config`,
+  `.git/hooks/`, `appopsy/`, `scripts/`, `pyproject.toml`, `uv.lock`, which run
+  or configure what runs outside it: edit those with Edit/Write), no reads of
+  credentials, `cases/` or `reports/`. Only `git push -u origin <branch>`,
+  `gh pr create|view` and `gh api` run outside it, and only when issued as a
+  single command (no pipes or `&&`). New branches use `--no-track`. The
+  maintainer runs `uv sync` (when dependencies change) and `appopsy
+  devices|audit` (the phone) in their own terminal. The command guard below is a
   convenience layer: it keeps routine commands routine and fixes real bugs, but
   it isn't hardened further unless a reviewer shows a way to publish private
   data or run untrusted code outside the sandbox.

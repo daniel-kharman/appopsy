@@ -486,10 +486,13 @@ def check_git(argv: Command, *, reviewer: bool = False, roots: Roots | None = No
                 raise Refused(f"git add {a} (only -A/-u; -f would stage ignored files)")
     elif sub in ("switch", "checkout"):
         flag = "-c" if sub == "switch" else "-b"
+        # --no-track: the sandbox can't write .git/config, so new branches don't
+        # record an upstream (the excluded `git push -u` sets it).
+        rest = [a for a in args if a != "--no-track"]
         if not (
-            len(args) in (2, 3) and args[0] == flag and not any(a.startswith("-") for a in args[1:])
+            len(rest) in (2, 3) and rest[0] == flag and not any(a.startswith("-") for a in rest[1:])
         ):
-            raise Refused(f"git {sub} other than `{flag} <new-branch> [<start>]`")
+            raise Refused(f"git {sub} other than `{flag} <new-branch> [<start>] [--no-track]`")
     elif sub == "push":
         check_push(args, roots)
     else:

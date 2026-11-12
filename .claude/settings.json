@@ -88,9 +88,7 @@
       "git push -u origin *",
       "gh pr create *",
       "gh pr view *",
-      "gh api *",
-      "uv run appopsy devices",
-      "uv run appopsy audit *"
+      "gh api *"
     ],
     "network": {
       "allowedDomains": [],
@@ -109,6 +107,16 @@
         "~/Library/Keychains",
         "./cases",
         "./reports"
+      ],
+      "denyWrite": [
+        "./.venv",
+        "./.githooks",
+        "./.git/config",
+        "./.git/hooks",
+        "./appopsy",
+        "./scripts",
+        "./pyproject.toml",
+        "./uv.lock"
       ]
     }
   },
