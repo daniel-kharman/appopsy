@@ -16,8 +16,9 @@ Default mode (the main session) answers "ask" for a refused command, and only
 when it involves a command settings.json pre-approves (gh, git, uv); everything
 else gets the normal permission prompt anyway. Notable refusals: `gh api` that
 isn't a plain GET to github.com, `gh pr create` for another repo or whose text
-names one of the maintainer's apps (the apps-only check runs on it), commits
-that skip hooks, `git add -f`, and tool flags that write, delete or upload.
+names one of the maintainer's apps (the apps-only check runs on it), any
+`git push` other than `-u origin <feature-branch>`, commits that skip hooks,
+`git add -f`, and tool flags that write, delete or upload.
 
 `--reviewer` mode (wired into the read-only reviewer agents) answers "deny" to
 any command that isn't on a short read-only list, or that redirects into a
@@ -357,7 +358,7 @@ def writes_or_runs(arg: str) -> bool:
     )
 
 
-def check_git(argv: Command, *, reviewer: bool = False) -> None:
+def check_git(argv: Command, *, reviewer: bool = False, roots: Roots | None = None) -> None:
     if len(argv) < 2 or argv[1].startswith("-"):
         raise Refused("git with a global option (-c, -C, --config-env, …)")
     sub, args = argv[1], argv[2:]
@@ -389,8 +390,74 @@ def check_git(argv: Command, *, reviewer: bool = False) -> None:
             len(args) in (2, 3) and args[0] == flag and not any(a.startswith("-") for a in args[1:])
         ):
             raise Refused(f"git {sub} other than `{flag} <new-branch> [<start>]`")
-    elif sub == "push" and any(a.startswith("--no-v") for a in args):
-        raise Refused("git push skipping the hooks")
+    elif sub == "push":
+        check_push(args, roots)
+
+
+# A branch name with nothing that could make it another ref, a refspec (`a:b`,
+# `+a` forces) or an option.
+BRANCH = re.compile(r"[A-Za-z0-9][A-Za-z0-9._/-]*")
+PROTECTED = {"main", "master", "head"}
+# Short-name prefixes git expands to other refs (heads/main is main).
+REF_PREFIXES = {"heads", "tags", "remotes", "refs", "origin"}
+# Config that changes where `git push -u origin X` goes or what it sends, or that
+# runs another program; core.hooksPath is checked separately.
+PUSH_CONFIG = (
+    r"^(remote\.origin\.(push|pushurl|receivepack|mirror)|url\..*insteadof"
+    r"|push\.followtags|core\.sshcommand|include\.path|includeif\..*)$"
+)
+
+
+def check_push(args: Command, roots: Roots | None) -> None:
+    """Only `git push -u origin <branch>` is routine, for a local branch other than
+    main, from this repo, with config that can't redirect it.
+
+    Anything else (force, --no-verify, another remote, a refspec, tags, --all,
+    --delete, several branches) asks. The name is resolved by git, because git
+    expands short names: `heads/main` is main, and a tag beats a branch.
+    """
+    if len(args) != 3 or args[:2] != ["-u", "origin"]:
+        raise Refused("git push other than `git push -u origin <branch>`")
+    branch = args[2]
+    if (
+        not BRANCH.fullmatch(branch)
+        or branch.lower() in PROTECTED
+        or branch.split("/", 1)[0].lower() in REF_PREFIXES
+        or re.fullmatch(r"[A-Z_]*HEAD", branch)
+        or ".." in branch
+        or branch.endswith((".lock", "/", "."))
+    ):
+        raise Refused(f"git push of {branch!r} (only a feature branch, never main)")
+    if (
+        roots is None
+        or roots.project is None
+        or not roots.cwd.resolve().is_relative_to(roots.project)
+    ):
+        raise Refused("git push from outside this repository")
+
+    def git(*cmd: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["git", "-C", str(roots.cwd), *cmd],  # noqa: S607 (git from PATH, like the shell)
+            capture_output=True, text=True, check=False, timeout=10,
+        )  # fmt: skip
+
+    try:
+        full = git("rev-parse", "--symbolic-full-name", branch)
+        tag = git("show-ref", "--verify", "--quiet", f"refs/tags/{branch}")
+        config = git("config", "--get-regexp", PUSH_CONFIG)
+        hooks = git("config", "--get", "core.hooksPath")
+    except (OSError, subprocess.SubprocessError) as e:
+        raise Refused("git push that can't be verified (git didn't run)") from e
+    if full.returncode != 0 or full.stdout.strip() != f"refs/heads/{branch}":
+        raise Refused(f"git push of {branch!r}, which isn't a local branch")
+    if tag.returncode == 0:
+        raise Refused(f"git push of {branch!r}, which is also a tag")
+    if config.stdout.strip():
+        raise Refused(
+            "git push with config that redirects or widens it (push refspec, URL rewrite, …)"
+        )
+    if hooks.stdout.strip() != ".githooks":
+        raise Refused("git push without core.hooksPath=.githooks (the pre-push hook wouldn't run)")
 
 
 def check_commit(args: Command) -> None:
@@ -475,7 +542,9 @@ def main_check(command: str, roots: Roots) -> None:
         elif is_cmd(argv, "gh", "pr", "create"):
             check_pr_create(argv[3:], roots)
         elif name == "git":
-            check_git(argv)
+            if argv[1:2] == ["push"] and any(c[:1] == ["cd"] for c in commands):
+                raise Refused("git push after cd (which repository's origin?)")
+            check_git(argv, roots=roots)
         elif any(is_cmd(argv, "uv", "run", t) for t in ("pytest", "ruff", "mypy")):
             check_tool(argv)
     if any_covered and any(t != "/dev/null" and not t.isdigit() for t in targets):

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -28,6 +29,7 @@ def run_hook(
     env: dict[str, str] | None = None,
     agent_type: str | None = None,
     scratchpad: Path | None = None,
+    cwd: Path | None = None,
 ) -> str | None:
     """The hook's permission decision for a Bash command (None: no objection)."""
     event: dict[str, object] = {"tool_name": "Bash", "tool_input": {"command": command}}
@@ -35,6 +37,8 @@ def run_hook(
         event["agent_type"] = agent_type
     if scratchpad:
         event["scratchpad_dir"] = str(scratchpad)
+    if cwd:
+        event["cwd"] = str(cwd)
     args = [sys.executable, "-I", str(HOOK), *(["--reviewer"] if reviewer else [])]
     out = subprocess.run(
         args,
@@ -194,6 +198,34 @@ NOT_ROUTINE = [
     "uv run pytest ../other/tests",
     "uv run ruff check --fix /path/outside",
     "uv run ruff clean",
+    # Push: only `-u origin <feature-branch>` is routine
+    "git push -u origin main",
+    "git push -u origin MAIN",
+    "git push -u origin master",
+    "git push -u origin HEAD",
+    "git push -u origin refs/heads/main",
+    "git push -u origin x:main",
+    "git push -u origin +x",
+    "git push -u origin x --force",
+    "git push -u origin x --forc",
+    "git push -u origin x -f",
+    "git push -u origin x --force-with-lease",
+    "git push -u origin x --no-verify",
+    "git push -u origin x --no-verif",
+    "git push -u origin -x",
+    "git push -u origin --all",
+    "git push -u origin --tags",
+    "git push -u origin --delete x",
+    "git push -u origin x y",
+    "git push -u upstream x",
+    "git push -u https://example.invalid/r.git x",
+    "git push --set-upstream origin x",
+    "git push origin x",
+    "git push",
+    "git push -u origin x..y",
+    "git push -u origin x.lock",
+    "git -c core.hooksPath=/dev/null push -u origin x",
+    "GIT_SSH_COMMAND=sh git push -u origin x",
     # Third review
     'git status <<<"x" /dev/null\ngit commit -n -m y\nx',
     'gi""t commit -n -m x',
@@ -369,6 +401,109 @@ def test_other_agents_get_main_mode() -> None:
     assert run_hook("git commit -n -m x", agent_type="general-purpose") == "ask"
 
 
+GIT = shutil.which("git")
+# Keep the developer's or CI's own git config out of the push checks.
+ISOLATED_GIT = {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+
+
+@pytest.fixture
+def push_repo(tmp_path: Path) -> Path:
+    """A repo set up like this one: hooks in .githooks, an origin, some branches and tags."""
+    assert GIT is not None
+    repo = tmp_path / "repo"
+    repo.mkdir()
+
+    def git(*args: str) -> None:
+        subprocess.run(
+            [GIT, "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@example.test", *args],
+            check=True,
+            capture_output=True,
+            env={**os.environ, **ISOLATED_GIT},
+        )
+
+    git("init", "-q", "-b", "main")
+    git("commit", "-q", "--allow-empty", "-m", "start")
+    for branch in ("feature-x", "fix/parser-v2", "both"):
+        git("branch", branch)
+    for tag in ("v1", "both", "onlytag"):
+        git("tag", tag)
+    git("config", "core.hooksPath", ".githooks")
+    git("remote", "add", "origin", "https://example.invalid/r.git")
+    git("update-ref", "refs/remotes/origin/main", "HEAD")
+    return repo
+
+
+def push_decision(repo: Path, command: str, cwd: Path | None = None) -> str | None:
+    env = {"CLAUDE_PROJECT_DIR": str(repo), **ISOLATED_GIT}
+    return run_hook(command, env=env, cwd=cwd or repo)
+
+
+def set_config(repo: Path, *args: str) -> None:
+    assert GIT is not None
+    subprocess.run([GIT, "-C", str(repo), "config", *args], check=True)
+
+
+@pytest.mark.skipif(GIT is None, reason="needs git")
+@pytest.mark.parametrize("branch", ["feature-x", "fix/parser-v2"])
+def test_push_of_a_feature_branch_is_routine(push_repo: Path, branch: str) -> None:
+    assert push_decision(push_repo, f"git push -u origin {branch}") is None
+
+
+@pytest.mark.skipif(GIT is None, reason="needs git")
+@pytest.mark.parametrize(
+    "branch",
+    [
+        "main",
+        "heads/main",  # git expands it to refs/heads/main (review finding)
+        "refs/heads/main",
+        "tags/v1",
+        "v1",  # a tag, no branch of that name
+        "onlytag",
+        "both",  # a tag and a branch: git pushes the tag
+        "origin/main",
+        "remotes/origin/main",
+        "ORIG_HEAD",
+        "FETCH_HEAD",
+        "no-such-branch",
+    ],
+)
+def test_push_of_anything_but_a_local_feature_branch_asks(push_repo: Path, branch: str) -> None:
+    assert push_decision(push_repo, f"git push -u origin {branch}") == "ask"
+
+
+@pytest.mark.skipif(GIT is None, reason="needs git")
+@pytest.mark.parametrize(
+    "config",
+    [
+        ("remote.origin.push", "+refs/heads/feature-x:refs/heads/main"),
+        ("remote.origin.pushurl", "https://example.invalid/other.git"),
+        ("url.https://example.invalid/.pushInsteadOf", "https://example.invalid/r"),
+        ("url.https://example.invalid/.insteadOf", "https://example.invalid/r"),
+        ("push.followTags", "true"),
+        ("remote.origin.receivepack", "sh"),
+        ("core.sshCommand", "sh"),
+        ("remote.origin.mirror", "true"),
+        ("include.path", "other.config"),
+        ("core.hooksPath", ".git/hooks"),
+    ],
+)
+def test_push_with_config_that_redirects_or_skips_hooks_asks(
+    push_repo: Path, config: tuple[str, str]
+) -> None:
+    set_config(push_repo, *config)
+    assert push_decision(push_repo, "git push -u origin feature-x") == "ask"
+
+
+@pytest.mark.skipif(GIT is None, reason="needs git")
+def test_push_from_another_repository_asks(push_repo: Path, tmp_path: Path) -> None:
+    set_config(push_repo, "--unset", "core.hooksPath")
+    assert push_decision(push_repo, "git push -u origin feature-x") == "ask"
+    set_config(push_repo, "core.hooksPath", ".githooks")
+    assert push_decision(push_repo, "git push -u origin feature-x", cwd=tmp_path) == "ask"
+    cd_then_push = f"cd {push_repo} && git push -u origin feature-x"
+    assert push_decision(push_repo, cd_then_push) == "ask"
+
+
 def test_reviewer_mode_denies_unreadable_input() -> None:
     out = subprocess.run(
         [sys.executable, "-I", str(HOOK), "--reviewer"],
@@ -390,8 +525,11 @@ def test_settings_wire_the_hook_and_keep_permissions_narrow() -> None:
     )
     perms = settings["permissions"]
     allow = perms["allow"]
-    # Nothing that pushes, deletes, merges, edits settings or touches the phone.
-    for rule in allow:
+    # Nothing that deletes, merges, edits settings or touches the phone; the one
+    # push rule is safe only because the guard narrows it to a feature branch.
+    pushes = [rule for rule in allow if "push" in rule]
+    assert pushes == ["Bash(git push -u origin *)"], pushes
+    for rule in (r for r in allow if r not in pushes):
         for bad in ("push", "pr merge", "delete", "rm ", "adb", "reset", "settings", "--force"):
             assert bad not in rule, rule
     assert "Bash(gh api *)" in allow  # safe only because of the hook above

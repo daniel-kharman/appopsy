@@ -77,7 +77,8 @@ changed files, and for report-reader the report file(s) to read (default
 git push -u origin <branch>
 ```
 
-The pre-push hook runs both third-party checks on every commit; if it refuses,
+Use exactly this form: it is the only push the command guard lets through
+without asking (a feature branch, never `main`, no other flags). The pre-push hook runs both third-party checks on every commit; if it refuses,
 fix the cause (never `--no-verify`). Then create the PR with
 `gh pr create --base main --title "<title>" --body-file <scratchpad>/pr-body.md`,
 writing the body to the session scratchpad, not the repo. Follow

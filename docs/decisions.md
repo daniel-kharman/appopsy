@@ -124,9 +124,9 @@ honest about where no number exists is better than inventing one.
 ## 10. Launch: squash into a new repository
 
 **Decision.** For the public launch, the code is published as a single
-squashed commit in a **new** GitHub repository. The private repository becomes
-an archive. Personal values found at HEAD were replaced with synthetic ones
-first.
+squashed commit in a **new** GitHub repository. The pre-release history is
+kept privately and never published. Personal values found at HEAD were
+replaced with synthetic ones first.
 
 **Why.** An audit of the full history found personal values in old commits
 and paths that no longer exist at HEAD. Squashing removes every history-only

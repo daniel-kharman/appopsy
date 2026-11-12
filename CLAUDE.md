@@ -398,6 +398,14 @@ fixture too, so the redactor knows every app even if the input lacks a `pm list`
   still runs), open a PR with `gh pr create`, and the maintainer merges. Updates
   to `appopsy/report/app_names.tsv` only ever land through a PR that shows the diff.
 - Every commit ends with the `Co-Authored-By:` trailer.
+- Commit timestamps carry the local UTC offset. To leave it out, commit with
+  `TZ=UTC` (e.g. `TZ=UTC git commit …`). This is optional, and existing history
+  is never rewritten for it.
+- **External contributors' PR branches are only ever checked out, tested or
+  run inside the sandbox (or a devcontainer), never in a normal session.**
+  `uv run`, pytest and the pre-commit hook execute the branch's code with your
+  user's access to the phone, `~/.config/appopsy/` and the network. Read the
+  diff on GitHub first; don't `gh pr checkout` it here.
 - The git hooks in `.githooks/` enforce the commit discipline (install:
   `git config core.hooksPath .githooks`). pre-commit checks the staged tree with
   ruff, mypy and pytest; pre-push runs both third-party checks on every commit
@@ -440,7 +448,9 @@ Tools:
   `.githooks/` or `.github/` change).
 - Skills: `/ship` (checks, reviewers, PR), `/capture-fixture` (maintainer
   only), `/post-launch-check` (read-only `gh api` audit of repo settings).
-- `.claude/settings.json` pre-approves only routine, non-destructive commands.
+- `.claude/settings.json` pre-approves only routine, non-destructive commands,
+  including `git push -u origin <branch>` for a feature branch (never `main`;
+  every other push form asks).
   Permission rules only match prefixes, so `.claude/hooks/command_guard.py`
   reads each command and fails closed: shell expansions, unknown flags, env
   or git global options in front of a pre-approved command all ask, as do a

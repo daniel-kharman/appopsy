@@ -60,8 +60,10 @@ intent.
 
 1. `settings.json` permissions: `allow` may hold only non-destructive,
    non-network routine commands (tests, lint, types, read-only and
-   branch/commit git, `gh pr create`, `gh pr view`, `gh api` GET). Flag any
-   allow rule that could push, delete, merge, force, change settings, publish,
+   branch/commit git, `gh pr create`, `gh pr view`, `gh api` GET), plus
+   `git push -u origin <branch>`, which the command guard narrows to a feature
+   branch with no other flags. Flag any allow rule that could push elsewhere,
+   delete, merge, force, change settings, publish,
    post, run `adb`, or run arbitrary code (`Bash(*)`, `Bash(python *)`,
    `Bash(uv run *)`, `Bash(sh *)`, environment runners). Rules are prefix
    matches: check what else each prefix admits. Deny rules for force pushes,
