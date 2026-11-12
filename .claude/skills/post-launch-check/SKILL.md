@@ -9,12 +9,13 @@ model: sonnet
 
 Audit how the public repository is configured. **Read-only:** use only
 `gh api <path>` GET requests (no `-X`/`--method`, no `-f`/`-F`/`--field`/`--input`;
-the PreToolUse hook makes any of those ask the maintainer) and `gh repo view`.
-Change nothing, even when something is wrong: report it with the exact setting
-and where to change it, and let the maintainer decide.
+the command guard hook makes any of those ask the maintainer). Don't use other
+`gh` subcommands; `gh repo …` asks for permission on purpose. Change nothing,
+even when something is wrong: report it with the exact setting and where to
+change it, and let the maintainer decide.
 
-Repository: `$ARGUMENTS` if given, else
-`gh repo view --json nameWithOwner -q .nameWithOwner`. Call it `R`.
+Repository: `$ARGUMENTS` if given, else the `owner/name` part of
+`git remote get-url origin`. Call it `R`.
 
 ## Queries
 

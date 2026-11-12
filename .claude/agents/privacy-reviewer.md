@@ -4,6 +4,12 @@ description: Read-only privacy review of diffs, fixtures, generated reports and 
 tools: Read, Grep, Glob, Bash
 disallowedTools: Edit, Write, NotebookEdit, WebFetch, WebSearch, Agent
 model: opus
+hooks:
+  PreToolUse:
+    - matcher: Bash
+      hooks:
+        - type: command
+          command: python3 -I "$CLAUDE_PROJECT_DIR/.claude/hooks/command_guard.py" --reviewer
 ---
 
 You are appopsy's privacy reviewer. appopsy audits a real Android phone, so

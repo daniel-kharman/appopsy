@@ -47,7 +47,8 @@ grep -E '^\[(ro.build.version.release|ro.product.manufacturer)\]' <case>/raw/get
 If the phone has apps that aren't in `~/.config/appopsy/my-apps.txt`
 (compare counts: `pm-list-packages-3p.txt` in the case vs. the list), note
 that for the maintainer (the list should be refreshed from this case). Don't
-print the names.
+print the names. Counts stay in your report to the maintainer; never put them
+in a commit, PR or file in the repo (an app count is a fingerprint).
 
 ## 3. Redact, trim and time-shift in one run
 
@@ -80,9 +81,11 @@ uv run appopsy redact-fixture --check --apps-only --third-party-list ~/.config/a
 uv run pytest -q tests/test_fixtures_clean.py
 ```
 
-All three must pass. If one fails, report the masked finding; don't hand-edit
-the fixture to make it pass unless the edit is a plain deletion of a whole
-block owned by a disallowed app, and say so.
+All three must pass. Don't hand-edit the fixture to make one pass unless the
+edit is a plain deletion of a whole block owned by a disallowed app, and say
+so. If a check still fails, **delete the new fixture folder** (an unclean
+fixture left in the working tree is one `git add` from a commit), go to step 6,
+and report the masked finding: the fix belongs in the redactor.
 
 ## 5. privacy-reviewer
 
@@ -100,12 +103,14 @@ the repo is now the only copy; the maintainer can re-capture if they reject it.
 
 Do not `git add` or commit. Report:
 
-- the fixture path, `ls -la` of it and line counts per file;
+- the fixture path and `wc -l` of its files (not `ls -la`: owner names and
+  real file times don't belong in anything you might paste on);
 - `git status --short`;
 - the three check results and the privacy-reviewer findings;
 - what you dropped from the fixture, if anything, and why;
 - whether the app list needs refreshing (step 2);
-- that the raw capture was deleted, with the path.
+- that the raw capture was deleted (as `<scratchpad>/cases/<case>`: the case
+  folder's name holds the real capture time).
 
 Then wait. The maintainer reviews the diff by hand (CLAUDE.md) and tells you
 whether to commit it, at which point `/ship` takes over.

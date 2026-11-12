@@ -1,8 +1,9 @@
 name: Sensitive paths
 
 # Flags pull requests that touch the files guarding appopsy's own safety
-# (the read-only adb wrapper, git hooks, CI, and the Claude Code configuration)
-# with the `security-sensitive` label, so the maintainer always reviews them by
+# (the read-only adb wrapper and collectors, git hooks, CI, the Claude Code
+# configuration, and the redaction code and safety tests) with the
+# `security-sensitive` label, so the maintainer always reviews them by
 # hand.
 #
 # pull_request_target is needed so the token can label PRs from forks. That is
@@ -32,8 +33,17 @@ jobs:
           # Renames count on both sides: moving a file out of .github/ is sensitive too.
           files=$(gh api --paginate "repos/$REPO/pulls/$PR/files" \
             --jq '.[] | .filename, (.previous_filename // empty)')
-          hits=$(printf '%s\n' "$files" \
-            | grep -E '^(\.claude/|\.githooks/|\.github/|appopsy/adb\.py$)' | sort -u || true)
+          # The adb wrapper, collectors, hooks, CI, Claude Code config, and the
+          # code and tests that hold the privacy and read-only checks.
+          sensitive='^(\.claude/|\.githooks/|\.github/|appopsy/adb\.py$|appopsy/collectors/'
+          sensitive="$sensitive"'|appopsy/redact[^/]*\.py$|appopsy/report/redaction\.py$'
+          sensitive="$sensitive"'|tests/test_(adb_allowlist|no_adb_bypass|fixtures_clean|claude_config|hooks)\.py$'
+          sensitive="$sensitive"'|pyproject\.toml$|scripts/)'
+          hits=$(printf '%s\n' "$files" | grep -E "$sensitive" | sort -u || true)
+          # The files API lists at most 3,000 files; past that, assume the worst.
+          if [ "$(printf '%s\n' "$files" | wc -l)" -ge 3000 ]; then
+            hits=$(printf '%s\n(over 3,000 files: not all could be checked)' "$hits")
+          fi
           if [ -z "$hits" ]; then
             echo "No security-sensitive paths changed."
             exit 0

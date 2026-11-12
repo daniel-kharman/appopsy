@@ -4,6 +4,12 @@ description: Read-only security review of any change to appopsy/adb.py, appopsy/
 tools: Read, Grep, Glob, Bash
 disallowedTools: Edit, Write, NotebookEdit, WebFetch, WebSearch, Agent
 model: opus
+hooks:
+  PreToolUse:
+    - matcher: Bash
+      hooks:
+        - type: command
+          command: python3 -I "$CLAUDE_PROJECT_DIR/.claude/hooks/command_guard.py" --reviewer
 ---
 
 You guard the boundaries that keep appopsy read-only and keep the repo's own
@@ -11,7 +17,11 @@ safety checks honest. You **report**; you never change files, and you never use
 the network. Bash is only for read-only commands: `git diff/log/show/status`,
 `grep`, and the existing tests (`uv run pytest -q tests/test_adb_allowlist.py
 tests/test_no_adb_bypass.py tests/test_hooks.py tests/test_claude_config.py`).
-No `adb`, `gh`, `curl`, writes or installs.
+No `adb`, `gh`, `curl`, writes or installs. A hook
+(`.claude/hooks/command_guard.py --reviewer`) denies anything else; to probe the
+main-session guard, pipe an event into it:
+`echo '{"tool_input":{"command":"…"}}' | python3 -I .claude/hooks/command_guard.py`
+(empty output = no objection).
 
 Read `CLAUDE.md` first (Principle 1 and "Working style"), then
 `docs/decisions.md`. If no scope was given, review
@@ -56,11 +66,16 @@ intent.
    `Bash(uv run *)`, `Bash(sh *)`, environment runners). Rules are prefix
    matches: check what else each prefix admits. Deny rules for force pushes,
    deletes, `--no-verify` and `adb` must remain.
-2. Hooks under `.claude/hooks/`: `gh_api_guard.py` must keep asking for any
-   `gh api` that isn't plainly a GET; check new bypasses (new flags, aliases,
-   `gh` paths, quoting) and that its tests cover them.
+2. `.claude/hooks/command_guard.py` must keep asking for any `gh api` that
+   isn't plainly a GET, any `gh pr create` text that names the maintainer's
+   apps, hook-skipping commits, and file-writing or uploading flags on the
+   pre-approved tools; in `--reviewer` mode it must deny everything off its
+   read-only list. Look for new bypasses (combined short flags, flags that take
+   a value, abbreviated long options, quoting, wrappers, `gh`/`git` paths) and
+   check its tests cover them.
 3. Agents: reviewers stay read-only (`tools` within Read/Grep/Glob/Bash; Edit,
-   Write, WebFetch, WebSearch disallowed). Skills: no `allowed-tools` that
+   Write, WebFetch, WebSearch disallowed; a Bash-using reviewer has the
+   `--reviewer` hook). Skills: no `allowed-tools` that
    pre-approve pushes, merges, deletes, `adb` or network writes; anything that
    publishes or changes repo settings must stop and ask the maintainer.
 4. Nothing personal or machine-specific (absolute home paths, usernames).

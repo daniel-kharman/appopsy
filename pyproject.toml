@@ -56,7 +56,7 @@ strict = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra"
+addopts = "-ra -p no:pastebin"  # never upload test output
 
 [dependency-groups]
 dev = [

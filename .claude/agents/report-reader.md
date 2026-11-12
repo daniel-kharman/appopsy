@@ -40,6 +40,13 @@ Flag:
 6. **Tone**: privacy findings inform and suggest tuning; they shouldn't sound
    like the phone is compromised.
 
+**Your output may end up in a public pull request.** Never quote the name of
+an installed app (anything not a system component or "came with the phone"),
+an exact date or time, or any identifier; refer to it by section and line
+instead ("the third app in the access table"). If the report you were given
+names installed apps or shows exact times, it isn't a redacted report: say so
+at the top, and keep every finding to section and line.
+
 Don't flag: the redaction aliases ("Installed app a1b2c3") themselves, which
 are intentional in shared reports, or exact wording you merely prefer.
 

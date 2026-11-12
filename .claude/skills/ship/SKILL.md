@@ -109,8 +109,16 @@ writing the body to the session scratchpad, not the repo. Follow
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 ```
 
-Reviewer findings in the PR must stay masked: no app names, identifiers or
-real timestamps (the PR is public).
+The PR is public:
+- Reviewer findings stay masked: no app names, identifiers or real
+  timestamps, only file, line and kind.
+- Report check results as pass/fail only. Never paste check output into a PR
+  or commit (the apps check prints how many apps are on the maintainer's list,
+  which is itself a fingerprint).
+- Before `gh pr create`, run the apps-only check on the body file
+  (`uv run appopsy redact-fixture --check --apps-only --third-party-list ~/.config/appopsy/my-apps.txt <scratchpad>/pr-body.md`).
+  The command guard runs it again on the title and body and asks if either names
+  one of the maintainer's apps.
 
 ## 6. Report back
 

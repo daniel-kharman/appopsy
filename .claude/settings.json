@@ -25,6 +25,14 @@
     "ask": [
       "Edit(**/.claude/settings.json)",
       "Write(**/.claude/settings.json)",
+      "Edit(**/.claude/hooks/**)",
+      "Write(**/.claude/hooks/**)",
+      "Edit(**/.claude/agents/**)",
+      "Write(**/.claude/agents/**)",
+      "Edit(**/.githooks/**)",
+      "Write(**/.githooks/**)",
+      "Edit(**/.github/**)",
+      "Write(**/.github/**)",
       "Bash(gh pr merge *)",
       "Bash(gh pr comment *)",
       "Bash(gh pr review *)",
@@ -73,7 +81,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -I \"$CLAUDE_PROJECT_DIR/.claude/hooks/gh_api_guard.py\""
+            "command": "python3 -I \"$CLAUDE_PROJECT_DIR/.claude/hooks/command_guard.py\""
           }
         ]
       }

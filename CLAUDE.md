@@ -441,9 +441,15 @@ Tools:
 - Skills: `/ship` (checks, reviewers, PR), `/capture-fixture` (maintainer
   only), `/post-launch-check` (read-only `gh api` audit of repo settings).
 - `.claude/settings.json` pre-approves only routine, non-destructive commands.
-  `.claude/hooks/gh_api_guard.py` makes any `gh api` call that isn't a plain GET
-  ask first. Personal overrides go in `.claude/settings.local.json`
-  (gitignored).
-- PRs touching `.claude/`, `.githooks/`, `.github/` or `appopsy/adb.py` get the
-  `security-sensitive` label (`.github/workflows/sensitive-paths.yml`): the
-  maintainer reviews those by hand.
+  Permission rules only match prefixes, so `.claude/hooks/command_guard.py`
+  reads each command and asks first for non-routine forms: a `gh api` that
+  isn't a plain GET, PR text naming your apps, hook-skipping commits, and
+  flags that write, delete or upload. In `--reviewer` mode it holds the
+  reviewers to a read-only command list. Edits to `.claude/settings.json`,
+  `.claude/hooks/`, `.claude/agents/`, `.githooks/` and `.github/` always ask.
+  Personal overrides go in `.claude/settings.local.json` (gitignored).
+- PRs touching `.claude/`, `.githooks/`, `.github/`, `appopsy/adb.py`, the
+  collectors, the redaction code, the safety tests, `pyproject.toml` or
+  `scripts/` get the `security-sensitive` label
+  (`.github/workflows/sensitive-paths.yml`): the maintainer reviews those by
+  hand.
