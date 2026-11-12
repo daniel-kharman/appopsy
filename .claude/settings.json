@@ -112,11 +112,22 @@
         "./.venv",
         "./.githooks",
         "./.git/config",
+        "./.git/config.worktree",
+        "./.git/commondir",
+        "./.git/worktrees",
         "./.git/hooks",
         "./appopsy",
         "./scripts",
         "./pyproject.toml",
-        "./uv.lock"
+        "./uv.lock",
+        "./*.py",
+        "./sitecustomize",
+        "./usercustomize",
+        "./*.pth",
+        "./*.ini",
+        "./*.cfg",
+        "./*.toml",
+        "./.python-version"
       ]
     }
   },

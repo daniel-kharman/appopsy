@@ -19,7 +19,7 @@ broken() {  # $1: the command that couldn't run, $2: its output
     echo "  Fix it with 'uv sync' (or remove .venv and run 'uv sync'). Nothing was pushed." >&2
     exit 1
 }
-out=$("$repo/.venv/bin/python" -c "import appopsy" 2>&1) || broken "$repo/.venv/bin/python" "$out"
+out=$("$repo/.venv/bin/python" -I -c "import appopsy" 2>&1) || broken "$repo/.venv/bin/python" "$out"
 out=$("$appopsy" --version 2>&1) || broken "$appopsy --version" "$out"
 if [ ! -f "$list" ]; then
     echo "pre-push: no app list at $list, so the third-party checks can't run." >&2
@@ -30,7 +30,7 @@ zero=0000000000000000000000000000000000000000
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/appopsy-pre-push.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT INT TERM
 # Your non-allowlisted app names, for checking commit messages.
-"$repo/.venv/bin/python" - "$list" >"$tmp/names" <<'PY'
+"$repo/.venv/bin/python" -I - "$list" >"$tmp/names" <<'PY'
 import sys
 from pathlib import Path
 from appopsy.redact_packages import DEFAULT_ALLOWLIST, load_third_party_list
@@ -78,7 +78,9 @@ while read -r local_ref local_sha remote_ref remote_sha; do
         if git diff-tree --root --no-commit-id --name-only -r "$c" | grep -qxF "$names_file" \
             && [ -f "$dir/$names_file" ]; then
             code=0
-            out=$("$repo/.venv/bin/python" "$dir/scripts/update_app_names.py" --verify "$dir/$names_file" 2>&1) || code=$?
+            # The working tree's script, never the pushed commit's: a commit can be
+            # written from inside the Claude Code sandbox, and this hook runs outside it.
+            out=$("$repo/.venv/bin/python" -I "$repo/scripts/update_app_names.py" --verify "$dir/$names_file" 2>&1) || code=$?
             if [ "$code" -ne 0 ]; then
                 echo "pre-push: $short: the app names file didn't verify against Wikidata (exit $code):" >&2
                 printf '%s\n' "$out" | sed 's/^/    /' >&2

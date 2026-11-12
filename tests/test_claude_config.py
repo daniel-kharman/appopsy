@@ -1071,8 +1071,11 @@ def test_sandbox_is_on_strict_and_offline() -> None:
         assert key not in filesystem, key
     # Nothing outside the sandbox may run code that sandboxed code could change: the
     # excluded push runs the pre-push hook, which runs .venv, appopsy/ and scripts/.
-    for path in ("./.venv", "./.githooks", "./.git/config", "./.git/hooks", "./appopsy",
-                 "./scripts", "./pyproject.toml", "./uv.lock"):  # fmt: skip
+    for path in ("./.venv", "./.githooks", "./.git/config", "./.git/config.worktree",
+                 "./.git/commondir", "./.git/worktrees", "./.git/hooks", "./appopsy",
+                 "./scripts", "./pyproject.toml", "./uv.lock", "./*.py", "./*.pth",
+                 "./*.ini", "./*.cfg", "./*.toml", "./.python-version",
+                 "./sitecustomize", "./usercustomize"):  # fmt: skip
         assert path in filesystem["denyWrite"], path
     for key in ("allowAppleEvents", "enableWeakerNetworkIsolation"):
         assert key not in sandbox, key

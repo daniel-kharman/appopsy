@@ -183,14 +183,21 @@ programs), in an OS-level sandbox (Seatbelt on macOS):
 - **Reads** of credentials (`~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.netrc`,
   `~/.git-credentials`, `~/.config/gh`, `~/.docker`, `~/.kube`, the keychains)
   and of the repo's `cases/` and `reports/` are denied.
-- **Writes** go only to the repo and temp, and not to what runs outside the
-  sandbox: `.venv/`, `.githooks/`, `.git/config`, `.git/hooks/`, `appopsy/`,
-  `scripts/`, `pyproject.toml` and `uv.lock` are write-denied (Claude Code
-  also protects `.claude/settings.json`, `.claude/hooks/` and `.claude/skills/`).
+- **Writes** go only to the repo and temp, and not to what runs, or configures
+  what runs, outside the sandbox: `.venv/`, `.githooks/`, `appopsy/`,
+  `scripts/`; git's `config`, `config.worktree`, `commondir` (which can point
+  git at another config), `worktrees/` and `hooks/`; and every root-level
+  `*.py`, `*.pth`, `*.ini`, `*.cfg`, `*.toml`, `.python-version`, and
+  `sitecustomize`/`usercustomize` packages (the editable install puts the repo
+  root on the venv's import path). Claude Code also protects
+  `.claude/settings.json`, `.claude/hooks/`, `.claude/skills/` and
+  `.claude/agents/`, and renaming a protected folder is blocked too (tested).
   The rule: **nothing outside the sandbox runs code that sandboxed code could
   have changed.** Claude still edits those files with Edit and Write, which go
   through the permission rules, not the shell; new branches use `--no-track`
-  because the sandbox can't record an upstream.
+  because the sandbox can't record an upstream. A write allowlist would be
+  simpler, but a deny on the repo overrides any allow inside it (tested), and
+  git needs to write `.git/`.
 - **No escape:** `allowUnsandboxedCommands: false` (no unsandboxed retries),
   `failIfUnavailable: true` (no sandbox, no session).
 - **Four exclusions** run outside it because they need GitHub:
@@ -199,7 +206,9 @@ programs), in an OS-level sandbox (Seatbelt on macOS):
   line sandboxed (tested). Only commands Claude issues match; code in the
   sandbox can't trigger them. The push runs the pre-push hook outside the
   sandbox, which is why its code (`.githooks/`, `.venv/`, `appopsy/`,
-  `scripts/`) is write-denied inside. Talking to the phone isn't excluded: the
+  `scripts/`) is write-denied inside, and why it runs the working tree's
+  `scripts/update_app_names.py`, never the copy in the pushed commit (the
+  sandbox can write commits). Talking to the phone isn't excluded: the
   maintainer runs `appopsy devices` and `audit` in their own terminal.
 - **uv** uses a repo-local, offline cache (`UV_CACHE_DIR=.uv-cache`): sandboxed
   code must not write the shared `~/.cache/uv` that other projects install
@@ -222,7 +231,7 @@ covers code nobody typed: tests, dependencies, git config programs.
 | `uv run pytest` runs the branch's code with the user's rights and may sync dependencies from the network | **Partly closed.** That code has no network, can't read credentials, `cases/` or `reports/`, can't write outside the repo and temp, and can't change anything that later runs outside the sandbox. It can still read other files (the app list, the rest of the home directory) and write them, encoded, into a file in the repo, which leaves with the next push or PR. The scans look for app names in plain text, not for encoded data, so **the control there is reading the diff before it's pushed** (PRs are reviewed by the maintainer). **Not closed for untrusted branches:** see below. |
 | `appopsy mask` answers "is this one of my apps" | **Remains**, by design. Inside the sandbox the answer can only leave the same way as above. |
 | Recursive searches reach nested private folders; symlinks and hard links beat the path checks | **Partly closed.** In Bash, the top-level `cases/` and `reports/` can't be read by any path (Seatbelt checks the real path). Hard links, private folders nested elsewhere, and the Read, Grep and Glob tools (not sandboxed) still rely on the guard. |
-| Programs set in git config or attributes run under read-only git | **Closed.** Git in Bash runs sandboxed, and `.git/config` and `.git/hooks/` can't be written from the sandbox, so the excluded push can't pick up config planted there. User-level git config (`~/.gitconfig`) isn't writable from the sandbox either. |
+| Programs set in git config or attributes run under read-only git | **Closed.** Git in Bash runs sandboxed, and the sandbox can't write `.git/config`, `config.worktree`, `commondir`, `worktrees/` or `hooks/`, so the excluded push can't pick up config planted there. User-level git config (`~/.gitconfig`) isn't writable from the sandbox either. |
 | PR body and commit message files are checked for app names only | **Remains.** `gh pr create` reads its body file outside the sandbox, so the guard's path rules (a scratchpad `.md`, or a repo file outside private folders) are the control, plus reading the PR before merging. |
 | The guard relies on Claude Code calling it | **Closed for Bash:** the OS enforces the sandbox whatever the guard decides. **Remains** for Read, Grep and Glob (permission rules and the guard), hooks, and the four exclusions (permission rules and the guard narrow them). |
 
@@ -237,5 +246,16 @@ covers code nobody typed: tests, dependencies, git config programs.
 - Anything committed leaves with the push. The pre-push scans catch app names
   and fixture identifiers, not arbitrary data, so pushes are reviewed through
   their PR.
+- **A new top-level package folder** (other than `sitecustomize` and
+  `usercustomize`) can still be created from the sandbox. Through the editable
+  install it would be importable by an unsandboxed appopsy run (the pre-push
+  hook, the guard's apps check) if appopsy or a dependency imported a module of
+  that name that isn't installed. No such import is known; the full fix is a
+  `src/` layout, so the venv no longer puts the repo root on the import path.
+- **Commands the maintainer runs in their own terminal** run outside the
+  sandbox, including working-tree code the sandbox can write: a commit made
+  there runs the pre-commit hook, so pytest loads `tests/conftest.py`. Claude's
+  commits run it sandboxed. After sandboxed work, look at `git status` before
+  committing from a terminal.
 - On native Windows there is no sandbox; `failIfUnavailable` makes Claude Code
   refuse to start rather than run without it.
