@@ -73,6 +73,13 @@ intent.
    `Bash(uv run *)`, `Bash(sh *)`, environment runners). Rules are prefix
    matches: check what else each prefix admits. Deny rules for force pushes,
    deletes, `--no-verify` and `adb` must remain.
+   The `sandbox` block is the security boundary and must not loosen: enabled,
+   `failIfUnavailable` and `allowUnsandboxedCommands: false`, no network
+   (`deniedDomains: ["*"]`, nothing allowed), `denyRead` keeping credentials,
+   `cases/` and `reports/`, and `excludedCommands` limited to the single
+   commands that need GitHub or the phone. Any new exclusion, allowed domain,
+   `allowWrite`, `allowRead`, Unix socket or Apple Events setting is a finding
+   that needs the maintainer.
 2. `.claude/hooks/command_guard.py` must keep asking for any `gh api` that
    isn't plainly a GET, any `gh pr create` text that names the maintainer's
    apps, hook-skipping commits, and file-writing or uploading flags on the

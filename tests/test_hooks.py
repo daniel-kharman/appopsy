@@ -180,6 +180,25 @@ def test_pre_push_verifies_a_changed_names_file(
         assert "didn't verify against Wikidata" in result.stderr and "stub verify" in result.stderr
 
 
+def test_pre_push_runs_the_working_tree_verify_script_not_the_pushed_one(
+    repo: Path, app_list: Path
+) -> None:
+    """A commit can be written from inside the Claude Code sandbox, and this hook runs
+    outside it, so it never runs code taken from the pushed commit."""
+    names = repo / "appopsy" / "report" / "app_names.tsv"
+    names.parent.mkdir(parents=True)
+    names.write_text("# not the real file\n")
+    script = repo / "scripts" / "update_app_names.py"
+    script.parent.mkdir()
+    script.write_text("import sys\nprint('pushed copy ran')\nsys.exit(1)\n")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "--no-verify", "-m", "update names")
+    script.write_text("import sys\nprint('working tree copy')\nsys.exit(0)\n")
+    result = push_hook(repo, app_list.parent, app_list)
+    assert result.returncode == 0, result.stderr
+    assert "pushed copy ran" not in result.stderr + result.stdout
+
+
 def test_pre_push_skips_verify_when_the_names_file_is_unchanged(repo: Path, app_list: Path) -> None:
     script = repo / "scripts" / "update_app_names.py"
     script.parent.mkdir()

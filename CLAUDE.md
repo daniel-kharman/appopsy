@@ -402,12 +402,16 @@ fixture too, so the redactor knows every app even if the input lacks a `pm list`
   `TZ=UTC` (e.g. `TZ=UTC git commit …`). This is optional, and existing history
   is never rewritten for it.
 - **External contributors' PR branches are only ever checked out, tested or
-  run inside the sandbox (or a devcontainer), never in a normal session.**
-  `uv run`, pytest and the pre-commit hook execute the branch's code with your
-  user's access to the phone, `~/.config/appopsy/` and the network. Read the
-  diff on GitHub first; don't `gh pr checkout` it here.
+  run in a devcontainer (or another throwaway machine), never in this
+  checkout, not even with the Claude Code sandbox on.** `uv run`, pytest and the
+  git hooks execute the branch's code, and the branch brings its own
+  `.claude/settings.json` and `.claude/hooks/`: Claude Code runs hooks outside
+  the sandbox, and a branch's settings can switch the sandbox off. Read the diff
+  on GitHub first; don't `gh pr checkout` it here.
 - The git hooks in `.githooks/` enforce the commit discipline (install:
-  `git config core.hooksPath .githooks`). pre-commit checks the staged tree with
+  `git config core.hooksPath .githooks`, plus `git config diff.ignoreSubmodules
+  all`, so a `git status` outside the sandbox, e.g. Claude Code's own, never runs
+  the config of a submodule the sandbox planted). pre-commit checks the staged tree with
   ruff, mypy and pytest; pre-push runs both third-party checks on every commit
   being pushed and fails closed without the app list. Never bypass them with
   `--no-verify`; if a hook is wrong, fix the hook.
@@ -433,7 +437,7 @@ opening PRs (`/ship`).
 - merging any PR;
 - anything that changes repo visibility or settings, publishes, or posts
   publicly (releases, issues, comments, labels, rulesets);
-- changes to the permissions in `.claude/settings.json`.
+- changes to the permissions or the sandbox in `.claude/settings.json`.
 
 **How to work:**
 - Don't stop mid-task for questions you can park: finish what you can, then
@@ -448,6 +452,26 @@ Tools:
   `.githooks/` or `.github/` change).
 - Skills: `/ship` (checks, reviewers, PR), `/capture-fixture` (maintainer
   only), `/post-launch-check` (read-only `gh api` audit of repo settings).
+- **The security boundary is the Claude Code sandbox** (`sandbox` in
+  `.claude/settings.json`; see `docs/decisions.md` entry 12). Bash commands and
+  everything they start run in it: no network at all, no writes outside the
+  repo and temp (and not to `.venv/`, `.githooks/`, git's config and hooks,
+  `appopsy/`, `scripts/` or root-level `*.py`/`*.toml`/`*.ini`/`*.cfg` files,
+  which run or configure what runs outside it: edit those with Edit/Write), no reads of
+  credentials, `cases/` or `reports/`. Only `git push -u origin <branch>`,
+  `gh pr create|view` and `gh api` run outside it, and only when issued as a
+  single command (no pipes or `&&`). New branches use `--no-track`. The
+  maintainer runs `uv sync` (when dependencies change) and `appopsy
+  devices|audit` (the phone) in their own terminal. The command guard below is a
+  convenience layer: it keeps routine commands routine and fixes real bugs, but
+  it isn't hardened further unless a reviewer shows a way to publish private
+  data or run untrusted code outside the sandbox.
+- **Never put tokens in the environment for this repo** (`GH_TOKEN`,
+  `GITHUB_TOKEN`, PyPI or any other credential): sandboxed commands inherit the
+  environment, and file denials don't cover it. gh uses the keychain, which the
+  sandbox can't read. If a token is ever needed in the environment, it gets
+  masked from sandboxed commands first (`sandbox.credentials.envVars` in
+  `.claude/settings.json`, a change the maintainer approves).
 - `.claude/settings.json` pre-approves only routine, non-destructive commands,
   including `git push -u origin <branch>` for a feature branch (never `main`;
   every other push form asks).

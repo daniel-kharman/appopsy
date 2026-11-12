@@ -421,6 +421,9 @@ def apps_check(texts: list[str], files: list[str]) -> None:
                 [str(appopsy), "redact-fixture", "--check", "--apps-only",
                  "--third-party-list", str(app_list), str(text_file)],
                 capture_output=True, check=False, timeout=budget(30),
+                # The editable install puts the repo root on the import path, so a
+                # planted *.dist-info there could register a pydantic plugin.
+                env={**os.environ, "PYDANTIC_DISABLE_PLUGINS": "__all__"},
             )  # fmt: skip
         except subprocess.TimeoutExpired as e:
             raise Refused("the apps check on the PR text timed out") from e
@@ -486,10 +489,13 @@ def check_git(argv: Command, *, reviewer: bool = False, roots: Roots | None = No
                 raise Refused(f"git add {a} (only -A/-u; -f would stage ignored files)")
     elif sub in ("switch", "checkout"):
         flag = "-c" if sub == "switch" else "-b"
+        # --no-track: the sandbox can't write .git/config, so new branches don't
+        # record an upstream (the excluded `git push -u` sets it).
+        rest = [a for a in args if a != "--no-track"]
         if not (
-            len(args) in (2, 3) and args[0] == flag and not any(a.startswith("-") for a in args[1:])
+            len(rest) in (2, 3) and rest[0] == flag and not any(a.startswith("-") for a in rest[1:])
         ):
-            raise Refused(f"git {sub} other than `{flag} <new-branch> [<start>]`")
+            raise Refused(f"git {sub} other than `{flag} <new-branch> [<start>] [--no-track]`")
     elif sub == "push":
         check_push(args, roots)
     else:
@@ -508,6 +514,27 @@ PUSH_CONFIG = (
     r"^(remote\.origin\.(push|pushurl|receivepack|mirror)|url\..*insteadof"
     r"|push\.followtags|core\.sshcommand|include\.path|includeif\..*)$"
 )
+
+
+def check_outside_sandbox_context(roots: Roots | None, *, runs_status: bool) -> None:
+    """The push and gh commands run outside the sandbox, so the repo they work in must
+    be this one, not a nested repo the sandbox planted (with its own config and
+    hooks). For a command that runs `git status` (push, gh pr create), no gitlink may
+    be staged: git would run the submodule's own config, e.g. its core.fsmonitor."""
+    if roots is None or roots.project is None or roots.cwd.resolve() != roots.project:
+        raise Refused("a command that runs outside the sandbox, from outside the repo root")
+    if runs_status:
+        try:
+            staged = subprocess.run(
+                ["git", "-C", str(roots.project), "ls-files", "--stage"],  # noqa: S607
+                capture_output=True, text=True, check=False, timeout=budget(10),
+            )  # fmt: skip
+        except (OSError, subprocess.SubprocessError) as e:
+            raise Refused("the staged files can't be checked (git didn't run)") from e
+        if staged.returncode != 0 or any(
+            line.startswith("160000 ") for line in staged.stdout.splitlines()
+        ):
+            raise Refused("a submodule (gitlink) is staged; its own git config would run")
 
 
 def check_push(args: Command, roots: Roots | None) -> None:
@@ -530,11 +557,8 @@ def check_push(args: Command, roots: Roots | None) -> None:
         or branch.endswith((".lock", "/", "."))
     ):
         raise Refused(f"git push of {branch!r} (only a feature branch, never main)")
-    if (
-        roots is None
-        or roots.project is None
-        or not roots.cwd.resolve().is_relative_to(roots.project)
-    ):
+    check_outside_sandbox_context(roots, runs_status=True)
+    if roots is None or roots.project is None:  # already refused above; narrows the type
         raise Refused("git push from outside this repository")
 
     def git(*cmd: str) -> subprocess.CompletedProcess[str]:
@@ -664,6 +688,8 @@ def main_check(command: str, roots: Roots) -> None:
         any_covered = any_covered or covered
         if covered and assigned:
             raise Refused("an environment assignment in front of a pre-approved command")
+        if name == "gh" and argv[1:2] in (["api"], ["pr"]):
+            check_outside_sandbox_context(roots, runs_status=is_cmd(argv, "gh", "pr", "create"))
         if is_cmd(argv, "gh", "api"):
             gh_api_calls += 1
             check_gh_api(argv[2:])

@@ -5,6 +5,11 @@
 # ~/.config/appopsy/my-apps.txt (or $APPOPSY_THIRD_PARTY_LIST). Fails closed.
 # Install once with:  git config core.hooksPath .githooks
 set -eu
+# This hook runs outside the Claude Code sandbox (an excluded push, or a terminal),
+# on files the sandbox can write. The editable install puts the repo root on the
+# import path, so no pydantic plugins from planted *.dist-info; and git shows the
+# real objects, not replacements a sandboxed process could add under refs/replace.
+export PYDANTIC_DISABLE_PLUGINS=__all__ GIT_NO_REPLACE_OBJECTS=1
 repo=$(git rev-parse --show-toplevel)
 appopsy="$repo/.venv/bin/appopsy"
 list="${APPOPSY_THIRD_PARTY_LIST:-$HOME/.config/appopsy/my-apps.txt}"
@@ -19,7 +24,7 @@ broken() {  # $1: the command that couldn't run, $2: its output
     echo "  Fix it with 'uv sync' (or remove .venv and run 'uv sync'). Nothing was pushed." >&2
     exit 1
 }
-out=$("$repo/.venv/bin/python" -c "import appopsy" 2>&1) || broken "$repo/.venv/bin/python" "$out"
+out=$("$repo/.venv/bin/python" -I -c "import appopsy" 2>&1) || broken "$repo/.venv/bin/python" "$out"
 out=$("$appopsy" --version 2>&1) || broken "$appopsy --version" "$out"
 if [ ! -f "$list" ]; then
     echo "pre-push: no app list at $list, so the third-party checks can't run." >&2
@@ -27,10 +32,14 @@ if [ ! -f "$list" ]; then
     exit 1
 fi
 zero=0000000000000000000000000000000000000000
-tmp=$(mktemp -d "${TMPDIR:-/tmp}/appopsy-pre-push.XXXXXX")
+# Not $TMPDIR: inside a Claude Code session that's sandbox-writable, so a sandboxed
+# process could swap folders in it while commits are extracted. ~/.cache isn't.
+base="$HOME/.cache/appopsy"
+mkdir -p "$base"
+tmp=$(mktemp -d "$base/pre-push.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT INT TERM
 # Your non-allowlisted app names, for checking commit messages.
-"$repo/.venv/bin/python" - "$list" >"$tmp/names" <<'PY'
+"$repo/.venv/bin/python" -I - "$list" >"$tmp/names" <<'PY'
 import sys
 from pathlib import Path
 from appopsy.redact_packages import DEFAULT_ALLOWLIST, load_third_party_list
@@ -58,7 +67,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     fi
     for c in $commits; do
         dir="$tmp/$c"
-        mkdir -p "$dir"
+        mkdir "$dir"  # fails (and stops the push) if something is already there
         git archive "$c" | tar -x -C "$dir"
         short=$(git rev-parse --short "$c")
         # Exit 1 with a report is a finding; anything else (or a traceback) means the
@@ -78,7 +87,9 @@ while read -r local_ref local_sha remote_ref remote_sha; do
         if git diff-tree --root --no-commit-id --name-only -r "$c" | grep -qxF "$names_file" \
             && [ -f "$dir/$names_file" ]; then
             code=0
-            out=$("$repo/.venv/bin/python" "$dir/scripts/update_app_names.py" --verify "$dir/$names_file" 2>&1) || code=$?
+            # The working tree's script, never the pushed commit's: a commit can be
+            # written from inside the Claude Code sandbox, and this hook runs outside it.
+            out=$("$repo/.venv/bin/python" -I "$repo/scripts/update_app_names.py" --verify "$dir/$names_file" 2>&1) || code=$?
             if [ "$code" -ne 0 ]; then
                 echo "pre-push: $short: the app names file didn't verify against Wikidata (exit $code):" >&2
                 printf '%s\n' "$out" | sed 's/^/    /' >&2

@@ -25,3 +25,6 @@ htmlcov/
 
 # Claude Code: personal permission overrides stay local
 .claude/settings.local.json
+
+# uv cache used inside the Claude Code sandbox (UV_CACHE_DIR in .claude/settings.json)
+.uv-cache/
