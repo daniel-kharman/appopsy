@@ -22,3 +22,6 @@ htmlcov/
 .DS_Store
 .idea/
 .vscode/
+
+# Claude Code: personal permission overrides stay local
+.claude/settings.local.json
