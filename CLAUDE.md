@@ -9,6 +9,10 @@ Phase 1 is a **privacy** tool (wide audience). Phase 3 adds **security** rules
 
 ## Principles (non-negotiable)
 
+The reasons behind these and the other key design choices are in
+[docs/decisions.md](docs/decisions.md). Read the relevant entry before changing
+one, and update it in the same PR if the reason no longer holds.
+
 1. **Read-only, enforced in code.** All adb calls go through one wrapper
    (`appopsy/adb.py`) that only executes commands on an explicit allowlist.
    Anything that changes device state (`pm uninstall`, `pm disable`, `appops set`,
@@ -93,6 +97,8 @@ appopsy/
   report/           # Markdown + HTML templates, redaction
 tests/fixtures/<android-version>-<oem>/<capture>/  # one redacted capture per folder (synthetic-*: hand-written)
 docs/format-notes.md                      # per-version/OEM output quirks
+docs/decisions.md                         # key design decisions and why
+.claude/            # agents (read-only reviewers), skills, settings.json, hooks/
 cases/              # gitignored: <timestamp>-<model>/raw, parsed, report
 ```
 
@@ -354,8 +360,10 @@ them inconsistent; independent statistics (per-UID counts, battery level) stay.
 hand before committing.
 
 Raw captures used to build a fixture (case folders, raw dumps, mapping files)
-live only in the scratchpad, never in the repo. Once the fixture is committed,
-delete them from the scratchpad and tell the maintainer that you have.
+live only in the scratchpad, never in the repo. Once the fixture is written and
+checked (`/capture-fixture` does this before showing it to the maintainer, so
+the fixture is the only copy; a rejected one is re-captured), delete them from
+the scratchpad and tell the maintainer that you have.
 
 **Exploring raw captures.** All exploration of raw captures goes through the
 masking helper, `uv run appopsy mask <file>` (reads `~/.config/appopsy/my-apps.txt`),
@@ -390,6 +398,14 @@ fixture too, so the redactor knows every app even if the input lacks a `pm list`
   still runs), open a PR with `gh pr create`, and the maintainer merges. Updates
   to `appopsy/report/app_names.tsv` only ever land through a PR that shows the diff.
 - Every commit ends with the `Co-Authored-By:` trailer.
+- Commit timestamps carry the local UTC offset. To leave it out, commit with
+  `TZ=UTC` (e.g. `TZ=UTC git commit …`). This is optional, and existing history
+  is never rewritten for it.
+- **External contributors' PR branches are only ever checked out, tested or
+  run inside the sandbox (or a devcontainer), never in a normal session.**
+  `uv run`, pytest and the pre-commit hook execute the branch's code with your
+  user's access to the phone, `~/.config/appopsy/` and the network. Read the
+  diff on GitHub first; don't `gh pr checkout` it here.
 - The git hooks in `.githooks/` enforce the commit discipline (install:
   `git config core.hooksPath .githooks`). pre-commit checks the staged tree with
   ruff, mypy and pytest; pre-push runs both third-party checks on every commit
@@ -403,3 +419,48 @@ fixture too, so the redactor knows every app even if the input lacks a `pm list`
   the adb allowlist.
 - Prior art to read and credit, not copy: Amnesty MVT, androidqf, Exodus Privacy.
   README must explain how appopsy differs (rules-driven, consumer-readable, privacy-first).
+
+## Autonomy
+
+**Do without asking:** code, tests, rule text, docs; running the reviewers
+(`.claude/agents/`) and fixing what they find; branching, committing and
+opening PRs (`/ship`).
+
+**Always ask the maintainer first:**
+- any new or changed adb allowlist entry;
+- fixtures from a real phone (`/capture-fixture`, which only the maintainer
+  starts and which stops before committing);
+- merging any PR;
+- anything that changes repo visibility or settings, publishes, or posts
+  publicly (releases, issues, comments, labels, rulesets);
+- changes to the permissions in `.claude/settings.json`.
+
+**How to work:**
+- Don't stop mid-task for questions you can park: finish what you can, then
+  batch the questions at the end.
+- If a reviewer finds something you can't resolve, say so in the PR's "Open
+  items" with your reasoning. Never drop or soften a finding to get a PR out.
+
+Tools:
+- Reviewers (read-only, no network): `privacy-reviewer` (always, before every
+  PR and on every fixture), `report-reader` (when report output changes),
+  `allowlist-guard` (when `appopsy/adb.py`, `appopsy/collectors/`, `.claude/`,
+  `.githooks/` or `.github/` change).
+- Skills: `/ship` (checks, reviewers, PR), `/capture-fixture` (maintainer
+  only), `/post-launch-check` (read-only `gh api` audit of repo settings).
+- `.claude/settings.json` pre-approves only routine, non-destructive commands,
+  including `git push -u origin <branch>` for a feature branch (never `main`;
+  every other push form asks).
+  Permission rules only match prefixes, so `.claude/hooks/command_guard.py`
+  reads each command and fails closed: shell expansions, unknown flags, env
+  or git global options in front of a pre-approved command all ask, as do a
+  `gh api` that isn't a plain GET, PR text naming your apps, and
+  hook-skipping commits. For the reviewer agents (by `agent_type`, or
+  `--reviewer`) it denies anything off a read-only command list. Edits to `.claude/settings.json`,
+  `.claude/hooks/`, `.claude/agents/`, `.githooks/` and `.github/` always ask.
+  Personal overrides go in `.claude/settings.local.json` (gitignored).
+- PRs touching `.claude/`, `.githooks/`, `.github/`, `appopsy/adb.py`, the
+  collectors, the redaction code, the safety tests, `pyproject.toml` or
+  `scripts/` get the `security-sensitive` label
+  (`.github/workflows/sensitive-paths.yml`): the maintainer reviews those by
+  hand.

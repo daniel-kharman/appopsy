@@ -1,0 +1,59 @@
+name: Sensitive paths
+
+# Flags pull requests that touch the files guarding appopsy's own safety
+# (the read-only adb wrapper and collectors, git hooks, CI, the Claude Code
+# configuration, and the redaction code and safety tests) with the
+# `security-sensitive` label, so the maintainer always reviews them by
+# hand.
+#
+# pull_request_target is needed so the token can label PRs from forks. That is
+# safe here only because this job never checks out or runs code from the PR:
+# it reads the PR's file list through the API, and PR data reaches the script
+# through env, never through ${{ }} inside `run:`. Keep it that way.
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions: {}
+
+jobs:
+  flag:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write  # add the label
+    steps:
+      - name: Label PRs that touch security-sensitive paths
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          LABEL: security-sensitive
+        run: |
+          set -euo pipefail
+          # Renames count on both sides: moving a file out of .github/ is sensitive too.
+          files=$(gh api --paginate "repos/$REPO/pulls/$PR/files" \
+            --jq '.[] | .filename, (.previous_filename // empty)')
+          # The adb wrapper, collectors, hooks, CI, Claude Code config, and the
+          # code and tests that hold the privacy and read-only checks.
+          sensitive='^(\.claude/|\.githooks/|\.github/|appopsy/adb\.py$|appopsy/collectors/'
+          sensitive="$sensitive"'|appopsy/redact[^/]*\.py$|appopsy/report/redaction\.py$'
+          sensitive="$sensitive"'|tests/test_(adb_allowlist|no_adb_bypass|fixtures_clean|claude_config|hooks)\.py$'
+          sensitive="$sensitive"'|pyproject\.toml$|scripts/)'
+          hits=$(printf '%s\n' "$files" | grep -E "$sensitive" | sort -u || true)
+          # The files API lists at most 3,000 files; past that, assume the worst.
+          if [ "$(printf '%s\n' "$files" | wc -l)" -ge 3000 ]; then
+            hits=$(printf '%s\n(over 3,000 files: not all could be checked)' "$hits")
+          fi
+          if [ -z "$hits" ]; then
+            echo "No security-sensitive paths changed."
+            exit 0
+          fi
+          gh api --method POST "repos/$REPO/issues/$PR/labels" -f "labels[]=$LABEL" --silent
+          {
+            echo "### Security-sensitive paths changed: maintainer review required"
+            echo
+            printf '%s\n' "$hits" | sed 's/^/- `/; s/$/`/'
+          } >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' "$hits" | while read -r f; do
+            echo "::warning title=Security-sensitive path::$f"
+          done
