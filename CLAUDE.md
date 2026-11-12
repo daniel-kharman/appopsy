@@ -9,6 +9,10 @@ Phase 1 is a **privacy** tool (wide audience). Phase 3 adds **security** rules
 
 ## Principles (non-negotiable)
 
+The reasons behind these and the other key design choices are in
+[docs/decisions.md](docs/decisions.md). Read the relevant entry before changing
+one, and update it in the same PR if the reason no longer holds.
+
 1. **Read-only, enforced in code.** All adb calls go through one wrapper
    (`appopsy/adb.py`) that only executes commands on an explicit allowlist.
    Anything that changes device state (`pm uninstall`, `pm disable`, `appops set`,
@@ -93,6 +97,8 @@ appopsy/
   report/           # Markdown + HTML templates, redaction
 tests/fixtures/<android-version>-<oem>/<capture>/  # one redacted capture per folder (synthetic-*: hand-written)
 docs/format-notes.md                      # per-version/OEM output quirks
+docs/decisions.md                         # key design decisions and why
+.claude/            # agents (read-only reviewers), skills, settings.json, hooks/
 cases/              # gitignored: <timestamp>-<model>/raw, parsed, report
 ```
 
@@ -354,8 +360,10 @@ them inconsistent; independent statistics (per-UID counts, battery level) stay.
 hand before committing.
 
 Raw captures used to build a fixture (case folders, raw dumps, mapping files)
-live only in the scratchpad, never in the repo. Once the fixture is committed,
-delete them from the scratchpad and tell the maintainer that you have.
+live only in the scratchpad, never in the repo. Once the fixture is written and
+checked (`/capture-fixture` does this before showing it to the maintainer, so
+the fixture is the only copy; a rejected one is re-captured), delete them from
+the scratchpad and tell the maintainer that you have.
 
 **Exploring raw captures.** All exploration of raw captures goes through the
 masking helper, `uv run appopsy mask <file>` (reads `~/.config/appopsy/my-apps.txt`),
@@ -403,3 +411,39 @@ fixture too, so the redactor knows every app even if the input lacks a `pm list`
   the adb allowlist.
 - Prior art to read and credit, not copy: Amnesty MVT, androidqf, Exodus Privacy.
   README must explain how appopsy differs (rules-driven, consumer-readable, privacy-first).
+
+## Autonomy
+
+**Do without asking:** code, tests, rule text, docs; running the reviewers
+(`.claude/agents/`) and fixing what they find; branching, committing and
+opening PRs (`/ship`).
+
+**Always ask the maintainer first:**
+- any new or changed adb allowlist entry;
+- fixtures from a real phone (`/capture-fixture`, which only the maintainer
+  starts and which stops before committing);
+- merging any PR;
+- anything that changes repo visibility or settings, publishes, or posts
+  publicly (releases, issues, comments, labels, rulesets);
+- changes to the permissions in `.claude/settings.json`.
+
+**How to work:**
+- Don't stop mid-task for questions you can park: finish what you can, then
+  batch the questions at the end.
+- If a reviewer finds something you can't resolve, say so in the PR's "Open
+  items" with your reasoning. Never drop or soften a finding to get a PR out.
+
+Tools:
+- Reviewers (read-only, no network): `privacy-reviewer` (always, before every
+  PR and on every fixture), `report-reader` (when report output changes),
+  `allowlist-guard` (when `appopsy/adb.py`, `appopsy/collectors/`, `.claude/`,
+  `.githooks/` or `.github/` change).
+- Skills: `/ship` (checks, reviewers, PR), `/capture-fixture` (maintainer
+  only), `/post-launch-check` (read-only `gh api` audit of repo settings).
+- `.claude/settings.json` pre-approves only routine, non-destructive commands.
+  `.claude/hooks/gh_api_guard.py` makes any `gh api` call that isn't a plain GET
+  ask first. Personal overrides go in `.claude/settings.local.json`
+  (gitignored).
+- PRs touching `.claude/`, `.githooks/`, `.github/` or `appopsy/adb.py` get the
+  `security-sensitive` label (`.github/workflows/sensitive-paths.yml`): the
+  maintainer reviews those by hand.
