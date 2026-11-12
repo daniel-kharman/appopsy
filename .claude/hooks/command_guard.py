@@ -20,11 +20,18 @@ names one of the maintainer's apps (the apps-only check runs on it), any
 `git push` other than `-u origin <feature-branch>`, commits that skip hooks,
 `git add -f`, and tool flags that write, delete or upload.
 
-`--reviewer` mode (wired into the read-only reviewer agents) answers "deny" to
-any command that isn't on a short read-only list, or that redirects into a
-file.
+Any git or gh subcommand the guard doesn't explicitly handle asks, so safety
+doesn't depend on how narrow settings.json's patterns are.
 
-The hook never allows anything. Standard library only.
+`--reviewer` mode (the read-only reviewer agents) answers "deny" to any command
+that isn't on a short read-only list, redirects into a file, or touches a path
+outside the repo or inside cases/ or reports/. It also checks the reviewers'
+Read, Grep and Glob calls the same way. The maintainer's app list is readable
+only through `redact-fixture --check --third-party-list`.
+
+The hook fails closed: if it crashes or times out, the answer is "ask" (or
+"deny" for a reviewer), never silence. It never allows anything. Standard
+library only.
 """
 
 from __future__ import annotations
@@ -332,11 +339,16 @@ def apps_check(texts: list[str], files: list[str]) -> None:
     with tempfile.TemporaryDirectory() as tmp:
         text_file = Path(tmp) / "pr-text.md"
         text_file.write_text(body)
-        result = subprocess.run(
-            [str(appopsy), "redact-fixture", "--check", "--apps-only",
-             "--third-party-list", str(app_list), str(text_file)],
-            capture_output=True, check=False, timeout=50,
-        )  # fmt: skip
+        try:
+            result = subprocess.run(
+                [str(appopsy), "redact-fixture", "--check", "--apps-only",
+                 "--third-party-list", str(app_list), str(text_file)],
+                capture_output=True, check=False, timeout=50,
+            )  # fmt: skip
+        except subprocess.TimeoutExpired as e:
+            raise Refused("the apps check on the PR text timed out") from e
+        except OSError as e:
+            raise Refused("the apps check on the PR text couldn't run") from e
     if result.returncode != 0:
         raise Refused("PR title or body names one of your apps (or the check failed)")
 
@@ -358,6 +370,11 @@ def writes_or_runs(arg: str) -> bool:
     )
 
 
+def short_group(arg: str, letters: str) -> bool:
+    """Whether a short-option group such as `-co` contains one of `letters`."""
+    return arg.startswith("-") and not arg.startswith("--") and bool(set(arg[1:]) & set(letters))
+
+
 def check_git(argv: Command, *, reviewer: bool = False, roots: Roots | None = None) -> None:
     if len(argv) < 2 or argv[1].startswith("-"):
         raise Refused("git with a global option (-c, -C, --config-env, …)")
@@ -367,6 +384,12 @@ def check_git(argv: Command, *, reviewer: bool = False, roots: Roots | None = No
     if sub in GIT_READ:
         if any(writes_or_runs(a) for a in args):
             raise Refused(f"git {sub} with an option that writes a file or runs a program")
+        if reviewer and any(
+            a.startswith(("--no-index", "--ignored", "--others"))
+            or (sub == "ls-files" and short_group(a, "oi"))
+            for a in args
+        ):  # fmt: skip
+            raise Refused(f"git {sub} reading files outside git or listing ignored ones")
         return
     if sub == "branch":
         if args in ([], ["--show-current"], ["--list"]):
@@ -392,6 +415,8 @@ def check_git(argv: Command, *, reviewer: bool = False, roots: Roots | None = No
             raise Refused(f"git {sub} other than `{flag} <new-branch> [<start>]`")
     elif sub == "push":
         check_push(args, roots)
+    else:
+        raise Refused(f"git {sub}, which this guard doesn't handle")
 
 
 # A branch name with nothing that could make it another ref, a refspec (`a:b`,
@@ -541,6 +566,10 @@ def main_check(command: str, roots: Roots) -> None:
             check_gh_api(argv[2:])
         elif is_cmd(argv, "gh", "pr", "create"):
             check_pr_create(argv[3:], roots)
+        elif is_cmd(argv, "gh", "pr", "view"):
+            pass  # read-only
+        elif name == "gh":
+            raise Refused(f"gh {' '.join(argv[1:3])}, which this guard doesn't handle")
         elif name == "git":
             if argv[1:2] == ["push"] and any(c[:1] == ["cd"] for c in commands):
                 raise Refused("git push after cd (which repository's origin?)")
@@ -557,16 +586,168 @@ def main_check(command: str, roots: Roots) -> None:
 
 READ_ONLY_TOOLS = {"grep", "egrep", "cat", "head", "tail", "wc", "ls", "stat", "echo",
                    "printf", "pwd", "cut", "tr", "diff", "comm", "basename", "dirname",
-                   "realpath", "find", "jq", "true", "test", "cd"}  # fmt: skip
+                   "realpath", "find", "true", "cd"}  # fmt: skip
+NO_PATHS = {"echo", "printf", "pwd", "true", "tr", "basename", "dirname"}
+PRIVATE_DIRS = ("cases", "reports")
 SAFE_ASSIGNMENT = re.compile(r"(TZ|LANG|LC_[A-Z]+)=")
 
 
-def reviewer_check(command: str) -> None:
+def readable(arg: str, cwd: Path, roots: Roots) -> bool:
+    """A path a reviewer may read: inside the repo (after symlinks), not in cases/ or
+    reports/. The app list is outside the repo, so it never qualifies."""
+    if roots.project is None:
+        return False
+    path = (cwd / Path(arg).expanduser()).resolve()
+    if not path.is_relative_to(roots.project):
+        return False
+    first = path.relative_to(roots.project).parts[:1]
+    return not (first and first[0] in PRIVATE_DIRS)
+
+
+def is_root(arg: str, cwd: Path, roots: Roots) -> bool:
+    """The repo root: cases/ and reports/ live directly under it, so a recursive read
+    from there walks into them. Recursive reads must name subdirectories."""
+    return roots.project is not None and (cwd / Path(arg).expanduser()).resolve() == roots.project
+
+
+def recursive_starts(argv: Command) -> list[str] | None:
+    """Where a recursive read starts (None if the command doesn't recurse)."""
+    name, args = argv[0], argv[1:]
+    if name == "find":
+        starts: list[str] = []
+        for a in args:
+            if a in ("-H", "-L", "-P"):
+                continue
+            if a.startswith("-") or a == "!":
+                break
+            starts.append(a)
+        return starts or ["."]
+    recursive = any(a in ("--recursive", "--dereference-recursive") or short_group(a, "rR")
+                    for a in args)  # fmt: skip
+    if name in ("grep", "egrep") and recursive:
+        return grep_paths(args, files_only=True) or ["."]
+    if name == "ls" and any(short_group(a, "R") or a == "--recursive" for a in args):
+        return path_args(argv) or ["."]
+    return None
+
+
+def path_args(argv: Command) -> list[str]:
+    """The arguments of a read-only tool that name files."""
+    name, args = argv[0], argv[1:]
+    if name in NO_PATHS:
+        return []
+    paths: list[str] = []
+    if name == "find":
+        it = iter(args)
+        started = False  # starting points come before the first expression
+        for a in it:
+            if not started and a in ("-H", "-L", "-P"):
+                continue
+            if a.startswith("-") or a == "!":
+                started = True
+                if a in ("-newer", "-anewer", "-cnewer", "-samefile"):
+                    paths.append(next(it, ""))
+            elif not started:
+                paths.append(a)
+        return paths
+    if name in ("grep", "egrep"):
+        return grep_paths(args)
+    for a in args:
+        if a == "-":
+            continue
+        if a.startswith("--") and "=" in a:
+            paths.append(a.split("=", 1)[1])  # --files0-from=x, --from-file=x
+        elif not a.startswith("-"):
+            paths.append(a)
+    return paths
+
+
+def grep_paths(args: Command, *, files_only: bool = False) -> list[str]:
+    """grep's file operands and pattern files (with files_only, just the operands);
+    patterns themselves are not paths."""
+    paths: list[str] = []
+    explicit = False  # a pattern given by -e/-f means every operand is a file
+    operands: list[str] = []
+    it = iter(args)
+    for a in it:
+        if a == "--":
+            operands.extend(it)
+            break
+        if a.startswith("--"):
+            name, eq, value = a.partition("=")
+            if name in ("--regexp", "--file"):
+                explicit = True
+                target = value if eq else next(it, "")
+                if name == "--file":
+                    paths.append(target)
+            elif eq:
+                paths.append(value)  # --exclude-from=x and the like
+        elif a.startswith("-") and a != "-":
+            for k, ch in enumerate(a[1:], start=1):
+                if ch in "ef":  # takes a value: the rest of the token or the next one
+                    explicit = True
+                    target = a[k + 1 :] or next(it, "")
+                    if ch == "f":
+                        paths.append(target)
+                    break
+                if ch in "ABCmd":  # context, max-count, directories: a value, not a path
+                    if not a[k + 1 :]:
+                        next(it, None)
+                    break
+        elif a != "-":
+            operands.append(a)
+    files = operands if explicit else operands[1:]
+    return files if files_only else paths + files
+
+
+def app_list_path() -> Path:
+    return (
+        Path(
+            os.environ.get("APPOPSY_THIRD_PARTY_LIST", Path.home() / ".config/appopsy/my-apps.txt")
+        )
+        .expanduser()
+        .resolve()
+    )
+
+
+def check_appopsy(argv: Command, cwd: Path, roots: Roots) -> None:
+    """`uv run appopsy mask|redact-fixture --check`: files inside the repo only; the app
+    list only as redact-fixture's --third-party-list."""
+    sub, args = argv[3], argv[4:]
+    if sub == "redact-fixture" and (
+        "--check" not in args
+        or any(a.startswith(("--out", "-o", "--mapping", "--force")) for a in args)
+    ):
+        raise Refused("redact-fixture other than --check")
+    it = iter(args)
+    for a in it:
+        name, eq, value = a.partition("=") if a.startswith("--") else (a, "", "")
+        if name == "--third-party-list":
+            if sub != "redact-fixture":
+                raise Refused("only redact-fixture --check may read the app list")
+            listed = value if eq else next(it, "")
+            if Path(listed).expanduser().resolve() != app_list_path():
+                raise Refused("--third-party-list other than your app list")
+        elif name == "--packages":
+            target = value if eq else next(it, "")
+            if not readable(target, cwd, roots):
+                raise Refused(f"reading {target!r} (outside the repo, or in cases/ or reports/)")
+        elif name == "--extra":
+            if not eq:
+                next(it, None)
+        elif a.startswith("-"):
+            continue
+        elif not readable(a, cwd, roots):
+            raise Refused(f"reading {a!r} (outside the repo, or in cases/ or reports/)")
+
+
+def reviewer_check(command: str, roots: Roots) -> None:
     commands, targets, assignments = parse(command)
     for t in targets:
         if t != "/dev/null" and not t.isdigit():
             raise Refused(f"redirection into {t!r}")
-    project = os.environ.get("CLAUDE_PROJECT_DIR", "")
+    project = str(roots.project or "")
+    cwd = roots.cwd
     for argv, assigned in zip(commands, assignments, strict=True):
         if any(not SAFE_ASSIGNMENT.match(a) for a in assigned):
             raise Refused("an environment assignment")
@@ -580,18 +761,32 @@ def reviewer_check(command: str) -> None:
                 a.startswith(("-delete", "-exec", "-ok", "-fprint", "-fls")) for a in argv
             ):
                 raise Refused("find with an action that runs or writes")
+            for path in path_args(argv):
+                if not readable(path, cwd, roots):
+                    raise Refused(
+                        f"{name} on {path!r} (outside the repo, or in cases/ or reports/)"
+                    )
+            for start in recursive_starts(argv) or []:
+                if is_root(start, cwd, roots):
+                    raise Refused(
+                        f"recursive {name} from the repo root (it would walk into cases/ and "
+                        "reports/); name the subdirectories instead"
+                    )
+            if name == "cd" and len(argv) == 2:
+                cwd = (cwd / Path(argv[1]).expanduser()).resolve()
         elif name in ("sort", "uniq"):
             if not all(re.fullmatch(r"-[nrufhVbcd]+", a) for a in argv[1:]):
                 raise Refused(f"{name} other than in a pipeline")
-        elif is_cmd(argv, "uv", "run", "appopsy", "mask"):
-            pass
-        elif is_cmd(argv, "uv", "run", "appopsy", "redact-fixture"):
-            if "--check" not in argv or any(
-                a.startswith(("--out", "-o", "--mapping", "--force")) for a in argv
-            ):
-                raise Refused("redact-fixture other than --check")
+        elif is_cmd(argv, "uv", "run", "appopsy") and argv[3:4] in (["mask"], ["redact-fixture"]):
+            check_appopsy(argv, cwd, roots)
         elif is_cmd(argv, "uv", "run", "pytest"):
             check_tool(argv)
+            for flag, value in Flags(
+                [a for a in argv[3:] if not re.fullmatch(r"-r[a-zA-Z]+|-[qvxsl]+", a) or a == "-p"],
+                PYTEST_BOOL, PYTEST_VALUE,
+            ).walk():  # fmt: skip
+                if not flag and not readable(value or "", cwd, roots):
+                    raise Refused("pytest on a path in cases/ or reports/")
         elif (
             name in ("python3", "python")
             and argv[1:2] == ["-I"]
@@ -603,37 +798,82 @@ def reviewer_check(command: str) -> None:
             raise Refused(f"{name} isn't on the reviewers' read-only list")
 
 
+def reviewer_file_check(tool: str, tool_input: dict[str, object], roots: Roots) -> None:
+    """A reviewer's Read, Grep or Glob call: the same path rules as its Bash commands."""
+    key = "file_path" if tool == "Read" else "path"
+    target = tool_input.get(key)
+    if target is None and tool != "Read":
+        target = str(roots.cwd)  # Grep and Glob default to the working directory
+    if not isinstance(target, str) or not readable(target, roots.cwd, roots):
+        raise Refused(f"{tool} of {target!r} (outside the repo, or in cases/ or reports/)")
+    if tool in ("Grep", "Glob") and is_root(target, roots.cwd, roots):
+        glob = tool_input.get("pattern") if tool == "Glob" else None
+        first = Path(glob).parts[0] if isinstance(glob, str) and glob else "*"
+        if tool == "Grep" or set(first) & set("*?[{"):
+            raise Refused(
+                f"{tool} across the repo root (it would reach cases/ and reports/); "
+                "give a subdirectory as the path"
+            )
+    pattern = tool_input.get("pattern") if tool == "Glob" else tool_input.get("glob")
+    if isinstance(pattern, str) and (
+        pattern.startswith(("/", "~"))
+        or ".." in Path(pattern).parts
+        or Path(pattern).parts[:1] in ((d,) for d in PRIVATE_DIRS)
+        or any(f"/{d}/" in f"/{pattern}" for d in PRIVATE_DIRS)
+    ):
+        raise Refused(
+            f"{tool} pattern {pattern!r} reaching outside the repo or into cases/ or reports/"
+        )
+
+
 REVIEWERS = {"privacy-reviewer", "report-reader", "allowlist-guard"}
 
 
-def main() -> int:
+def decide(mode: dict[str, bool]) -> str | None:
+    """Why this tool call isn't routine (or, for a reviewer, isn't read-only)."""
+    try:
+        event = json.loads(sys.stdin.read())
+    except ValueError:
+        event = None
+    if not isinstance(event, dict):
+        return "a tool call this guard can't read" if mode["reviewer"] else None
     # Reviewer mode: wired in the agents' frontmatter (--reviewer), and also chosen
     # here from `agent_type`, because the settings.json hook runs inside subagents
     # too, while frontmatter hooks of project agents can be skipped (e.g. before
     # the workspace is trusted).
-    reviewer = "--reviewer" in sys.argv[1:]
-    project = os.environ.get("CLAUDE_PROJECT_DIR", "")
-    roots = Roots(project, None, None)
+    if event.get("agent_type") in REVIEWERS:
+        mode["reviewer"] = True
+    tool = event.get("tool_name") or "Bash"
+    tool_input = event.get("tool_input")
+    if not isinstance(tool_input, dict):
+        return "a tool call this guard can't read" if mode["reviewer"] else None
+    roots = Roots(os.environ.get("CLAUDE_PROJECT_DIR", ""), event.get("scratchpad_dir"),
+                  event.get("cwd"))  # fmt: skip
     try:
-        event = json.load(sys.stdin)
-        command = event.get("tool_input", {}).get("command", "")
-        reviewer = reviewer or event.get("agent_type") in REVIEWERS
-        roots = Roots(project, event.get("scratchpad_dir"), event.get("cwd"))
-    except (ValueError, AttributeError, TypeError):
-        command = None
-    reason: str | None = None
-    if not isinstance(command, str):
-        if reviewer:
-            reason = "a tool call this guard can't read"
-    else:
-        try:
-            if reviewer:
-                reviewer_check(command)
-            else:
-                main_check(command, roots)
-        except Refused as e:
-            reason = str(e)
+        if tool in ("Read", "Grep", "Glob"):
+            if mode["reviewer"]:
+                reviewer_file_check(tool, tool_input, roots)
+            return None
+        command = tool_input.get("command")
+        if not isinstance(command, str):
+            return "a tool call this guard can't read" if mode["reviewer"] else None
+        if mode["reviewer"]:
+            reviewer_check(command, roots)
+        else:
+            main_check(command, roots)
+    except Refused as e:
+        return str(e)
+    return None
+
+
+def main() -> int:
+    mode = {"reviewer": "--reviewer" in sys.argv[1:]}
+    try:
+        reason = decide(mode)
+    except Exception as e:  # fail closed: a crash must never mean "allowed"
+        reason = f"the guard failed ({type(e).__name__}), so it can't vouch for this"
     if reason:
+        reviewer = mode["reviewer"]
         out = {
             "hookSpecificOutput": {
                 "hookEventName": "PreToolUse",

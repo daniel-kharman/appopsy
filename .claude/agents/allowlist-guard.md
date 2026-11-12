@@ -6,10 +6,12 @@ disallowedTools: Edit, Write, NotebookEdit, WebFetch, WebSearch, Agent
 model: opus
 hooks:
   PreToolUse:
-    - matcher: Bash
+    - matcher: Bash|Read|Grep|Glob
       hooks:
         - type: command
-          command: python3 -I "$CLAUDE_PROJECT_DIR/.claude/hooks/command_guard.py" --reviewer
+          command: >-
+            python3 -I "$CLAUDE_PROJECT_DIR/.claude/hooks/command_guard.py" --reviewer
+            || echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"The command guard did not run."}}'
 ---
 
 You guard the boundaries that keep appopsy read-only and keep the repo's own
@@ -71,8 +73,10 @@ intent.
 2. `.claude/hooks/command_guard.py` must keep asking for any `gh api` that
    isn't plainly a GET, any `gh pr create` text that names the maintainer's
    apps, hook-skipping commits, and file-writing or uploading flags on the
-   pre-approved tools; in `--reviewer` mode it must deny everything off its
-   read-only list. Look for new bypasses (combined short flags, flags that take
+   pre-approved tools, and any git or gh subcommand it doesn't handle; in
+   reviewer mode it must deny everything off its read-only list and any path
+   outside the repo or in `cases/`/`reports/` (for Read, Grep and Glob too), and
+   it must fail closed (a crash or timeout means ask/deny, never silence). Look for new bypasses (combined short flags, flags that take
    a value, abbreviated long options, quoting, wrappers, `gh`/`git` paths) and
    check its tests cover them.
 3. Agents: reviewers stay read-only (`tools` within Read/Grep/Glob/Bash; Edit,

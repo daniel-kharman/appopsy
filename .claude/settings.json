@@ -78,11 +78,11 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Bash",
+        "matcher": "Bash|Read|Grep|Glob",
         "hooks": [
           {
             "type": "command",
-            "command": "python3 -I \"$CLAUDE_PROJECT_DIR/.claude/hooks/command_guard.py\""
+            "command": "python3 -I \"$CLAUDE_PROJECT_DIR/.claude/hooks/command_guard.py\" || echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"ask\",\"permissionDecisionReason\":\"The command guard did not run, so it cannot vouch for this.\"}}'"
           }
         ]
       }

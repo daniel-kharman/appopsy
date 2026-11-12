@@ -455,8 +455,12 @@ Tools:
   reads each command and fails closed: shell expansions, unknown flags, env
   or git global options in front of a pre-approved command all ask, as do a
   `gh api` that isn't a plain GET, PR text naming your apps, and
-  hook-skipping commits. For the reviewer agents (by `agent_type`, or
-  `--reviewer`) it denies anything off a read-only command list. Edits to `.claude/settings.json`,
+  hook-skipping commits, and so does any git or gh subcommand it doesn't
+  handle. A crash or timeout in the guard means ask, never silence. For the
+  reviewer agents (by `agent_type`, or `--reviewer`) it denies anything off a
+  read-only command list and any read outside the repo or in `cases/` or
+  `reports/`, for Bash and for Read, Grep and Glob; the app list is readable
+  only through `redact-fixture --check --third-party-list`. Edits to `.claude/settings.json`,
   `.claude/hooks/`, `.claude/agents/`, `.githooks/` and `.github/` always ask.
   Personal overrides go in `.claude/settings.local.json` (gitignored).
 - PRs touching `.claude/`, `.githooks/`, `.github/`, `appopsy/adb.py`, the
