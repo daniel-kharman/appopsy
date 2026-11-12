@@ -82,6 +82,7 @@
         "hooks": [
           {
             "type": "command",
+            "timeout": 90,
             "command": "python3 -I \"$CLAUDE_PROJECT_DIR/.claude/hooks/command_guard.py\" || echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"ask\",\"permissionDecisionReason\":\"The command guard did not run, so it cannot vouch for this.\"}}'"
           }
         ]

@@ -24,9 +24,11 @@ Any git or gh subcommand the guard doesn't explicitly handle asks, so safety
 doesn't depend on how narrow settings.json's patterns are.
 
 `--reviewer` mode (the read-only reviewer agents) answers "deny" to any command
-that isn't on a short read-only list, redirects into a file, or touches a path
-outside the repo or inside cases/ or reports/. It also checks the reviewers'
-Read, Grep and Glob calls the same way. The maintainer's app list is readable
+that isn't on a short read-only list (read-only git, the repo's check commands,
+pipe filters; no file-reading tools, since grep, cat and ls may be anything on
+PATH), redirects into a file, or touches a path outside the repo or inside
+cases/ or reports/. Reviewers read files through Read, Grep and Glob, which are
+checked by path the same way. The maintainer's app list is readable
 only through `redact-fixture --check --third-party-list`.
 
 The hook fails closed: if it crashes or times out, the answer is "ask" (or
@@ -43,6 +45,7 @@ import shlex
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 SEPARATORS = {";", "&&", "||", "|", "|&", "&", "(", ")", ";;"}
@@ -59,6 +62,19 @@ HEREDOC = re.compile(r"<<(-?)[ \t]*(?:'([^'\n]+)'|\"([^\"\n]+)\")")
 GUARD_PATH = ".claude/hooks/command_guard.py"
 
 Command = list[str]
+
+# One time budget for the whole decision, well under the hook's timeout in
+# settings.json, so the guard answers before Claude Code would kill it.
+BUDGET_SECONDS = 45.0
+DEADLINE = time.monotonic() + BUDGET_SECONDS
+
+
+def budget(limit: float) -> float:
+    """A subprocess timeout within the remaining budget; refuse once it is spent."""
+    left = DEADLINE - time.monotonic()
+    if left < 1:
+        raise Refused("the guard ran out of time checking this")
+    return min(limit, left)
 
 
 class Refused(Exception):
@@ -343,7 +359,7 @@ def apps_check(texts: list[str], files: list[str]) -> None:
             result = subprocess.run(
                 [str(appopsy), "redact-fixture", "--check", "--apps-only",
                  "--third-party-list", str(app_list), str(text_file)],
-                capture_output=True, check=False, timeout=50,
+                capture_output=True, check=False, timeout=budget(30),
             )  # fmt: skip
         except subprocess.TimeoutExpired as e:
             raise Refused("the apps check on the PR text timed out") from e
@@ -463,7 +479,7 @@ def check_push(args: Command, roots: Roots | None) -> None:
     def git(*cmd: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             ["git", "-C", str(roots.cwd), *cmd],  # noqa: S607 (git from PATH, like the shell)
-            capture_output=True, text=True, check=False, timeout=10,
+            capture_output=True, text=True, check=False, timeout=budget(10),
         )  # fmt: skip
 
     try:
@@ -556,6 +572,13 @@ def main_check(command: str, roots: Roots) -> None:
     for argv, assigned in zip(commands, assignments, strict=True):
         if not argv:
             continue
+        if is_cmd(argv, "uv", "run") and len(argv) > 2:
+            if argv[2] == "--":
+                argv = ["uv", "run", *argv[3:]]
+            elif argv[2].startswith("-"):
+                raise Refused("uv run with options before the command")
+            if len(argv) > 2 and Path(argv[2]).name.lower() in ("git", "gh"):
+                argv = argv[2:]  # `uv run git …` is still git
         name = Path(argv[0]).name.lower()
         covered = name in ("gh", "git") or is_cmd(argv, "uv", "run")
         any_covered = any_covered or covered
@@ -584,120 +607,71 @@ def main_check(command: str, roots: Roots) -> None:
 
 # --- reviewer mode ---------------------------------------------------------------
 
-READ_ONLY_TOOLS = {"grep", "egrep", "cat", "head", "tail", "wc", "ls", "stat", "echo",
-                   "printf", "pwd", "cut", "tr", "diff", "comm", "basename", "dirname",
-                   "realpath", "find", "true", "cd"}  # fmt: skip
-NO_PATHS = {"echo", "printf", "pwd", "true", "tr", "basename", "dirname"}
+# Reviewers read files with the Read, Grep and Glob tools, which this guard checks
+# by path. Their Bash has no file-reading tools at all: names like grep, cat and
+# ls resolve to whatever is on PATH (ugrep, bat or eza on some machines), whose
+# flags can run programs, write files or list cases/. Bash keeps read-only git
+# with checked paths, the repo's own check commands, and filters that read only
+# a pipe.
+REVIEWER_GIT = {"status", "diff", "log", "show", "rev-parse", "rev-list", "ls-files",
+                "merge-base"}  # fmt: skip
+# Options that write, run a program, read outside git, or list ignored files;
+# git accepts unambiguous abbreviations, so prefixes of these count too.
+REVIEWER_GIT_RISKY = ("--output", "--ext-diff", "--textconv", "--no-index", "--ignored",
+                      "--others", "--contents")  # fmt: skip
+# Pipe filters: no operands (so no files), only these short flags, numbers as values.
+FILTERS = {"head": "nc", "tail": "nc", "wc": "lwcm", "sort": "nrufhVb", "uniq": "cdui"}
+BUILTINS = {"echo", "printf", "true", "pwd"}
 PRIVATE_DIRS = ("cases", "reports")
 SAFE_ASSIGNMENT = re.compile(r"(TZ|LANG|LC_[A-Z]+)=")
 
 
 def readable(arg: str, cwd: Path, roots: Roots) -> bool:
     """A path a reviewer may read: inside the repo (after symlinks), not in cases/ or
-    reports/. The app list is outside the repo, so it never qualifies."""
+    reports/ in any letter case (macOS file systems ignore case). The app list is
+    outside the repo, so it never qualifies."""
     if roots.project is None:
         return False
     path = (cwd / Path(arg).expanduser()).resolve()
     if not path.is_relative_to(roots.project):
         return False
-    first = path.relative_to(roots.project).parts[:1]
-    return not (first and first[0] in PRIVATE_DIRS)
+    parts = path.relative_to(roots.project).parts
+    return not (parts and parts[0].casefold() in PRIVATE_DIRS)
 
 
 def is_root(arg: str, cwd: Path, roots: Roots) -> bool:
     """The repo root: cases/ and reports/ live directly under it, so a recursive read
-    from there walks into them. Recursive reads must name subdirectories."""
+    from there reaches them. Recursive reads must name subdirectories."""
     return roots.project is not None and (cwd / Path(arg).expanduser()).resolve() == roots.project
 
 
-def recursive_starts(argv: Command) -> list[str] | None:
-    """Where a recursive read starts (None if the command doesn't recurse)."""
-    name, args = argv[0], argv[1:]
-    if name == "find":
-        starts: list[str] = []
-        for a in args:
-            if a in ("-H", "-L", "-P"):
-                continue
-            if a.startswith("-") or a == "!":
-                break
-            starts.append(a)
-        return starts or ["."]
-    recursive = any(a in ("--recursive", "--dereference-recursive") or short_group(a, "rR")
-                    for a in args)  # fmt: skip
-    if name in ("grep", "egrep") and recursive:
-        return grep_paths(args, files_only=True) or ["."]
-    if name == "ls" and any(short_group(a, "R") or a == "--recursive" for a in args):
-        return path_args(argv) or ["."]
-    return None
+def risky_git_option(arg: str) -> bool:
+    name = arg.split("=", 1)[0]
+    return name.startswith(REVIEWER_GIT_RISKY) or (
+        len(name) >= 3 and any(option.startswith(name) for option in REVIEWER_GIT_RISKY)
+    )
 
 
-def path_args(argv: Command) -> list[str]:
-    """The arguments of a read-only tool that name files."""
-    name, args = argv[0], argv[1:]
-    if name in NO_PATHS:
-        return []
-    paths: list[str] = []
-    if name == "find":
-        it = iter(args)
-        started = False  # starting points come before the first expression
-        for a in it:
-            if not started and a in ("-H", "-L", "-P"):
-                continue
-            if a.startswith("-") or a == "!":
-                started = True
-                if a in ("-newer", "-anewer", "-cnewer", "-samefile"):
-                    paths.append(next(it, ""))
-            elif not started:
-                paths.append(a)
-        return paths
-    if name in ("grep", "egrep"):
-        return grep_paths(args)
+def check_reviewer_git(argv: Command) -> None:
+    if len(argv) < 2 or argv[1].startswith("-"):
+        raise Refused("git with a global option (-c, -C, --config-env, …)")
+    sub, args = argv[1], argv[2:]
+    if sub == "branch" and args in ([], ["--show-current"], ["--list"]):
+        return
+    if sub not in REVIEWER_GIT:
+        raise Refused(f"git {sub} isn't on the reviewers' read-only list")
     for a in args:
-        if a == "-":
-            continue
-        if a.startswith("--") and "=" in a:
-            paths.append(a.split("=", 1)[1])  # --files0-from=x, --from-file=x
-        elif not a.startswith("-"):
-            paths.append(a)
-    return paths
-
-
-def grep_paths(args: Command, *, files_only: bool = False) -> list[str]:
-    """grep's file operands and pattern files (with files_only, just the operands);
-    patterns themselves are not paths."""
-    paths: list[str] = []
-    explicit = False  # a pattern given by -e/-f means every operand is a file
-    operands: list[str] = []
-    it = iter(args)
-    for a in it:
-        if a == "--":
-            operands.extend(it)
-            break
-        if a.startswith("--"):
-            name, eq, value = a.partition("=")
-            if name in ("--regexp", "--file"):
-                explicit = True
-                target = value if eq else next(it, "")
-                if name == "--file":
-                    paths.append(target)
-            elif eq:
-                paths.append(value)  # --exclude-from=x and the like
-        elif a.startswith("-") and a != "-":
-            for k, ch in enumerate(a[1:], start=1):
-                if ch in "ef":  # takes a value: the rest of the token or the next one
-                    explicit = True
-                    target = a[k + 1 :] or next(it, "")
-                    if ch == "f":
-                        paths.append(target)
-                    break
-                if ch in "ABCmd":  # context, max-count, directories: a value, not a path
-                    if not a[k + 1 :]:
-                        next(it, None)
-                    break
-        elif a != "-":
-            operands.append(a)
-    files = operands if explicit else operands[1:]
-    return files if files_only else paths + files
+        if a.startswith("--") and risky_git_option(a):
+            raise Refused(
+                f"git {sub} {a} (writes, runs a program, reads outside git or lists ignored files)"
+            )
+        if sub == "ls-files" and short_group(a, "oi"):
+            raise Refused("git ls-files listing ignored or untracked files")
+        if not a.startswith("-") and (
+            a.startswith(("/", "~")) or ".." in Path(a.split(":", 1)[-1]).parts
+        ):
+            # git diff quietly compares files outside the work tree (no-index mode)
+            raise Refused(f"git {sub} on {a!r}, outside the repo")
 
 
 def app_list_path() -> Path:
@@ -745,7 +719,7 @@ def reviewer_check(command: str, roots: Roots) -> None:
     commands, targets, assignments = parse(command)
     for t in targets:
         if t != "/dev/null" and not t.isdigit():
-            raise Refused(f"redirection into {t!r}")
+            raise Refused(f"redirection into or from {t!r}")
     project = str(roots.project or "")
     cwd = roots.cwd
     for argv, assigned in zip(commands, assignments, strict=True):
@@ -753,38 +727,27 @@ def reviewer_check(command: str, roots: Roots) -> None:
             raise Refused("an environment assignment")
         if not argv:
             continue
-        name = argv[0]  # exact: no paths, so `X+=/cat` or `./cat` can't pass as cat
+        name = argv[0]  # exact: no paths, so `X+=/cat` or `./head` can't pass
         if name == "git":
-            check_git(argv, reviewer=True)
-        elif name in READ_ONLY_TOOLS:
-            if name == "find" and any(
-                a.startswith(("-delete", "-exec", "-ok", "-fprint", "-fls")) for a in argv
-            ):
-                raise Refused("find with an action that runs or writes")
-            for path in path_args(argv):
-                if not readable(path, cwd, roots):
+            check_reviewer_git(argv)
+        elif name in FILTERS:
+            letters = FILTERS[name]
+            for a in argv[1:]:
+                if not re.fullmatch(rf"-[{letters}]+\d*|-\d+|\d+", a):
                     raise Refused(
-                        f"{name} on {path!r} (outside the repo, or in cases/ or reports/)"
+                        f"{name} {a!r}: reviewers' filters only read a pipe (use the Read and "
+                        "Grep tools for files)"
                     )
-            for start in recursive_starts(argv) or []:
-                if is_root(start, cwd, roots):
-                    raise Refused(
-                        f"recursive {name} from the repo root (it would walk into cases/ and "
-                        "reports/); name the subdirectories instead"
-                    )
-            if name == "cd" and len(argv) == 2:
-                cwd = (cwd / Path(argv[1]).expanduser()).resolve()
-        elif name in ("sort", "uniq"):
-            if not all(re.fullmatch(r"-[nrufhVbcd]+", a) for a in argv[1:]):
-                raise Refused(f"{name} other than in a pipeline")
+        elif name in BUILTINS:
+            pass
         elif is_cmd(argv, "uv", "run", "appopsy") and argv[3:4] in (["mask"], ["redact-fixture"]):
             check_appopsy(argv, cwd, roots)
         elif is_cmd(argv, "uv", "run", "pytest"):
             check_tool(argv)
-            for flag, value in Flags(
-                [a for a in argv[3:] if not re.fullmatch(r"-r[a-zA-Z]+|-[qvxsl]+", a) or a == "-p"],
-                PYTEST_BOOL, PYTEST_VALUE,
-            ).walk():  # fmt: skip
+            args = [
+                a for a in argv[3:] if not re.fullmatch(r"-r[a-zA-Z]+|-[qvxsl]+", a) or a == "-p"
+            ]
+            for flag, value in Flags(args, PYTEST_BOOL, PYTEST_VALUE).walk():
                 if not flag and not readable(value or "", cwd, roots):
                     raise Refused("pytest on a path in cases/ or reports/")
         elif (
@@ -795,35 +758,40 @@ def reviewer_check(command: str, roots: Roots) -> None:
         ):
             pass  # probing this guard
         else:
-            raise Refused(f"{name} isn't on the reviewers' read-only list")
+            raise Refused(
+                f"{name} isn't on the reviewers' Bash list (read files with the Read, Grep "
+                "and Glob tools)"
+            )
 
 
 def reviewer_file_check(tool: str, tool_input: dict[str, object], roots: Roots) -> None:
-    """A reviewer's Read, Grep or Glob call: the same path rules as its Bash commands."""
+    """A reviewer's Read, Grep or Glob call: inside the repo, never cases/ or reports/,
+    and no recursive search from the root that holds them."""
     key = "file_path" if tool == "Read" else "path"
     target = tool_input.get(key)
     if target is None and tool != "Read":
         target = str(roots.cwd)  # Grep and Glob default to the working directory
     if not isinstance(target, str) or not readable(target, roots.cwd, roots):
         raise Refused(f"{tool} of {target!r} (outside the repo, or in cases/ or reports/)")
+    pattern = tool_input.get("pattern") if tool == "Glob" else tool_input.get("glob")
+    if isinstance(pattern, str):
+        parts = Path(pattern).parts
+        if (
+            pattern.startswith(("/", "~"))
+            or ".." in parts
+            or set(pattern) & set("{}")
+            or any(part.casefold() in PRIVATE_DIRS for part in parts)
+        ):
+            raise Refused(
+                f"{tool} pattern {pattern!r} reaching outside the repo or into cases/ or reports/"
+            )
     if tool in ("Grep", "Glob") and is_root(target, roots.cwd, roots):
-        glob = tool_input.get("pattern") if tool == "Glob" else None
-        first = Path(glob).parts[0] if isinstance(glob, str) and glob else "*"
-        if tool == "Grep" or set(first) & set("*?[{"):
+        first = Path(pattern).parts[0] if isinstance(pattern, str) and pattern else "*"
+        if tool == "Grep" or set(first) & set("*?["):
             raise Refused(
                 f"{tool} across the repo root (it would reach cases/ and reports/); "
                 "give a subdirectory as the path"
             )
-    pattern = tool_input.get("pattern") if tool == "Glob" else tool_input.get("glob")
-    if isinstance(pattern, str) and (
-        pattern.startswith(("/", "~"))
-        or ".." in Path(pattern).parts
-        or Path(pattern).parts[:1] in ((d,) for d in PRIVATE_DIRS)
-        or any(f"/{d}/" in f"/{pattern}" for d in PRIVATE_DIRS)
-    ):
-        raise Refused(
-            f"{tool} pattern {pattern!r} reaching outside the repo or into cases/ or reports/"
-        )
 
 
 REVIEWERS = {"privacy-reviewer", "report-reader", "allowlist-guard"}
@@ -836,7 +804,7 @@ def decide(mode: dict[str, bool]) -> str | None:
     except ValueError:
         event = None
     if not isinstance(event, dict):
-        return "a tool call this guard can't read" if mode["reviewer"] else None
+        return "a tool call this guard can't read"
     # Reviewer mode: wired in the agents' frontmatter (--reviewer), and also chosen
     # here from `agent_type`, because the settings.json hook runs inside subagents
     # too, while frontmatter hooks of project agents can be skipped (e.g. before
@@ -846,7 +814,7 @@ def decide(mode: dict[str, bool]) -> str | None:
     tool = event.get("tool_name") or "Bash"
     tool_input = event.get("tool_input")
     if not isinstance(tool_input, dict):
-        return "a tool call this guard can't read" if mode["reviewer"] else None
+        return "a tool call this guard can't read"
     roots = Roots(os.environ.get("CLAUDE_PROJECT_DIR", ""), event.get("scratchpad_dir"),
                   event.get("cwd"))  # fmt: skip
     try:
@@ -856,7 +824,7 @@ def decide(mode: dict[str, bool]) -> str | None:
             return None
         command = tool_input.get("command")
         if not isinstance(command, str):
-            return "a tool call this guard can't read" if mode["reviewer"] else None
+            return "a tool call this guard can't read"
         if mode["reviewer"]:
             reviewer_check(command, roots)
         else:
@@ -867,6 +835,8 @@ def decide(mode: dict[str, bool]) -> str | None:
 
 
 def main() -> int:
+    global DEADLINE
+    DEADLINE = time.monotonic() + BUDGET_SECONDS
     mode = {"reviewer": "--reviewer" in sys.argv[1:]}
     try:
         reason = decide(mode)

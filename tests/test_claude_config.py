@@ -240,6 +240,11 @@ NOT_ROUTINE = [
     "gh label list",
     "gh extension install x",
     "gh",
+    # `uv run git …` is still git (fourth review)
+    "uv run git push --force origin main",
+    "uv run gh api -X DELETE repos/o/r",
+    "uv run -- git commit -n -m x",
+    "uv run --with x pytest",
     # Push: only `-u origin <feature-branch>` is routine
     "git push -u origin main",
     "git push -u origin MAIN",
@@ -296,11 +301,21 @@ def test_anything_else_asks(command: str) -> None:
     assert run_hook(command) == "ask"
 
 
-def test_garbage_input_is_ignored_in_the_main_session() -> None:
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "not json",
+        "[]",
+        json.dumps({"tool_name": "Bash", "tool_input": "git status"}),
+        json.dumps({"tool_name": "Bash", "tool_input": {"command": 7}}),
+        json.dumps({"tool_name": "Bash", "tool_input": {}}),
+    ],
+)
+def test_unreadable_events_ask_in_the_main_session(raw: str) -> None:
     out = subprocess.run(
-        [sys.executable, "-I", str(HOOK)], input="not json", capture_output=True, text=True
+        [sys.executable, "-I", str(HOOK)], input=raw, capture_output=True, text=True, check=True
     )
-    assert out.returncode == 0 and out.stdout == ""
+    assert json.loads(out.stdout)["hookSpecificOutput"]["permissionDecision"] == "ask"
 
 
 @pytest.mark.skipif(not HAS_APPOPSY, reason="needs the project's virtualenv")
@@ -356,25 +371,17 @@ REVIEWER_OK = [
     "git diff origin/main...HEAD -- .claude",
     "git log --format=%B origin/main..HEAD | uv run appopsy mask",
     "git show HEAD:CLAUDE.md | head -50",
-    "grep -rn 'foo$' docs",
+    "git log --oneline -20 | tail -n 5",
+    "git diff --stat | wc -l",
+    "git log --format=%an | sort | uniq -c",
+    "git status --short",
+    "git ls-files tests | wc -l",
+    "git branch --show-current",
     "uv run appopsy redact-fixture --check --third-party-list ~/.config/appopsy/my-apps.txt tests/fixtures 2>&1 | uv run appopsy mask",
-    "uv run pytest -q tests/test_adb_allowlist.py",
-    """echo '{"tool_input":{"command":"gh api -X POST x"}}' | python3 -I .claude/hooks/command_guard.py""",
-    "find tests -name '*.py' | wc -l",
-    "ls -la .claude 2>/dev/null",
-    "grep -rn -e cases docs .claude",
-    "grep -c foo README.md CLAUDE.md",
-    "grep -A 3 foo docs/decisions.md",
-    "cat README.md docs/decisions.md",
-    "head -20 .claude/settings.json",
-    "cd docs && cat decisions.md",
-    "find tests/fixtures -name '*.txt'",
-    "ls",
-    "ls -R docs",
     "uv run appopsy redact-fixture --check --apps-only --third-party-list ~/.config/appopsy/my-apps.txt .",
     "uv run appopsy mask tests/fixtures/17-google/capture-5/getprop.txt",
-    "git status --short",
-    "git ls-files tests",
+    "uv run pytest -q tests/test_adb_allowlist.py",
+    """echo '{"tool_input":{"command":"gh api -X POST x"}}' | python3 -I .claude/hooks/command_guard.py""",
 ]
 
 REVIEWER_DENIED = [
@@ -420,6 +427,40 @@ REVIEWER_DENIED = [
     "uv run pytest --debug=/tmp/x",
     "python3 -I /tmp/x/.claude/hooks/command_guard.py",
     "uname -a",
+    # No file-reading tools in reviewers' Bash: grep, cat and ls may be ugrep, bat
+    # or eza, whose flags run programs, write files or list cases/ (fourth review)
+    "grep foo README.md",
+    "grep -d recurse x .",
+    "grep --filter='*:sh' x README.md",
+    "grep --save-config=.githooks/pre-push",
+    "cat README.md",
+    "cat --pager=sh README.md",
+    "ls",
+    "ls -T .",
+    "find tests",
+    "find -f .. -name x",
+    "diff -rN . tests",
+    "head -5 README.md",
+    "head -c 5 README.md",
+    "wc -l README.md",
+    "sort -o out.txt",
+    "sort -ofile",
+    "sort --compress-program=sh",
+    "cd docs",
+    "cd; cat .config/appopsy/my-apps.txt",
+    "stat README.md",
+    # git reading outside the repo or listing ignored files (fourth review)
+    "git diff /dev/null ~/.config/appopsy/my-apps.txt",
+    "git diff --stat /etc/shells /etc/hosts",
+    "git diff HEAD -- ../outside",
+    "git blame --contents x README.md",
+    "git blame README.md",
+    "git cat-file -p HEAD",
+    "git ls-files --oth",
+    "git ls-files --other",
+    "git ls-files -co",
+    "git diff --no-ind a b",
+    "git status --ign",
     # The app list: only redact-fixture --check --third-party-list may read it
     "cat ~/.config/appopsy/my-apps.txt",
     "head -5 ~/.config/appopsy/my-apps.txt",
@@ -501,6 +542,14 @@ APP_LIST = str(Path("~/.config/appopsy/my-apps.txt").expanduser())
         ("Glob", {"pattern": "../*"}),
         ("Glob", {"pattern": "*", "path": str(Path(APP_LIST).parent)}),
         ("Read", {}),
+        # Case-insensitive file systems (fourth review)
+        ("Read", {"file_path": str(VENV.parent / "CASES" / "x" / "raw" / "getprop.txt")}),
+        ("Read", {"file_path": str(VENV.parent / "Reports" / "r.md")}),
+        ("Grep", {"pattern": "x", "path": str(VENV.parent / "Cases")}),
+        ("Glob", {"pattern": "Cases/**", "path": str(VENV.parent)}),
+        # Brace patterns (fourth review)
+        ("Glob", {"pattern": "{..}/{cases}/**", "path": str(VENV.parent / "docs")}),
+        ("Grep", {"pattern": "x", "path": str(VENV.parent / "docs"), "glob": "{a,b}"}),
     ],
 )
 def test_reviewer_file_tools_stay_in_the_repo(tool: str, tool_input: dict[str, object]) -> None:
@@ -704,11 +753,12 @@ def test_reviewer_agents_are_read_only(name: str) -> None:
     denied = next(line for line in front.splitlines() if line.startswith("disallowedTools:"))
     for tool in ("Edit", "Write", "NotebookEdit", "WebFetch", "WebSearch"):
         assert tool in denied, tool
-    if "Bash" in tools:
-        # Bash inherits the project's allow rules, so the reviewer hook must hold it
-        # to the read-only list.
-        assert "matcher: Bash" in front
-        assert 'command_guard.py" --reviewer' in front
+    # Every reviewer has the reviewer hook, with a deny fallback, on its file tools
+    # and (where it has Bash) on Bash, which otherwise inherits the allow rules.
+    assert 'command_guard.py" --reviewer' in front
+    assert "|| echo" in front and '"permissionDecision":"deny"' in front
+    matcher = next(line for line in front.splitlines() if "matcher:" in line)
+    assert set(matcher.split(":", 1)[1].strip().split("|")) == tools
 
 
 def test_settings_git_and_gh_rules_name_specific_subcommands() -> None:
@@ -841,3 +891,53 @@ def test_settings_hook_asks_when_the_guard_cannot_start(tmp_path: Path) -> None:
         ).stdout
         decision = json.loads(out.strip().splitlines()[-1])["hookSpecificOutput"]
         assert decision["permissionDecision"] == "ask"
+
+
+def frontmatter_hook_command(name: str) -> str:
+    """The reviewer hook command from an agent's frontmatter (a YAML folded block)."""
+    lines = frontmatter(name).splitlines()
+    start = next(i for i, line in enumerate(lines) if line.strip() == "command: >-")
+    folded = []
+    for line in lines[start + 1 :]:
+        if not line.startswith(" " * 12):
+            break
+        folded.append(line.strip())
+    return " ".join(folded)
+
+
+@pytest.mark.skipif(shutil.which("sh") is None, reason="needs sh")
+@pytest.mark.parametrize("name", ["privacy-reviewer", "report-reader", "allowlist-guard"])
+def test_reviewer_hook_denies_when_the_guard_cannot_start(name: str, tmp_path: Path) -> None:
+    command = frontmatter_hook_command(name)
+    hooks = tmp_path / ".claude" / "hooks"
+    hooks.mkdir(parents=True)
+    (hooks / "command_guard.py").write_text("def broken(:\n")
+    sh = shutil.which("sh")
+    assert sh is not None
+    out = subprocess.run(
+        [sh, "-c", command],
+        input=json.dumps(BASH),
+        capture_output=True,
+        text=True,
+        check=True,
+        env={**os.environ, "CLAUDE_PROJECT_DIR": str(tmp_path)},
+    ).stdout
+    decision = json.loads(out.strip().splitlines()[-1])["hookSpecificOutput"]
+    assert decision["permissionDecision"] == "deny"
+
+
+def test_hooks_have_a_timeout_above_the_guards_budget() -> None:
+    guard = load_guard()
+    settings = json.loads((CLAUDE / "settings.json").read_text())
+    for entry in settings["hooks"]["PreToolUse"]:
+        for hook in entry["hooks"]:
+            assert hook["timeout"] > guard.BUDGET_SECONDS + 10
+    for name in ("privacy-reviewer", "report-reader", "allowlist-guard"):
+        assert "timeout: 90" in frontmatter(name)
+
+
+def test_a_spent_time_budget_refuses(monkeypatch: pytest.MonkeyPatch) -> None:
+    guard = load_guard()
+    monkeypatch.setattr(guard, "DEADLINE", 0.0)
+    with pytest.raises(guard.Refused, match="out of time"):
+        guard.budget(10)

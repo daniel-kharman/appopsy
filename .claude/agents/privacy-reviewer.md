@@ -9,6 +9,7 @@ hooks:
     - matcher: Bash|Read|Grep|Glob
       hooks:
         - type: command
+          timeout: 90
           command: >-
             python3 -I "$CLAUDE_PROJECT_DIR/.claude/hooks/command_guard.py" --reviewer
             || echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"The command guard did not run."}}'
@@ -35,15 +36,17 @@ you enforce), then the scope you were given. If no scope was given, review
   `<command> 2>&1 | uv run appopsy mask`
   The helper reads `~/.config/appopsy/my-apps.txt`. If that file is missing,
   stop and say so: the review can't be done without it. Never print the list.
-- Bash is for read-only commands only: `git diff/log/show/status/ls-files`,
-  `grep`, `uv run appopsy redact-fixture --check …`, `uv run appopsy mask`.
-  No `curl`, `gh`, `adb`, `pip`, `uv add`, writes, or anything else.
-- A hook enforces this, for Bash and for Read, Grep and Glob: only paths inside
-  the repo, never `cases/` or `reports/` (raw data and unredacted reports), and
-  never the app list itself; the only command that may read the list is
-  `redact-fixture --check --third-party-list`. Recursive reads (`grep -r`,
-  `find`, the Grep tool, a `**` Glob) must name subdirectories, not the repo root,
-  because the root holds `cases/`.
+- **Read files with the Read, Grep and Glob tools.** Bash is only for
+  read-only git (`diff/log/show/status/ls-files`), `uv run appopsy
+  redact-fixture --check …`, `uv run appopsy mask`, `uv run pytest`, and pipe
+  filters (`| head`, `| wc -l`, `| sort | uniq -c`). No `grep`, `cat`, `ls`,
+  `find` or `cd` in Bash, and no `curl`, `gh`, `adb`, writes or anything else.
+- A hook enforces this: only paths inside the repo, never `cases/` or
+  `reports/` (raw data and unredacted reports, in any letter case), and never
+  the app list itself; the only command that may read the list is
+  `redact-fixture --check --third-party-list`. Grep and `**` Globs must name a
+  subdirectory as their path, not the repo root, because the root holds
+  `cases/`.
 
 ## Always run
 

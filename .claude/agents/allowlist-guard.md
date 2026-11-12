@@ -9,6 +9,7 @@ hooks:
     - matcher: Bash|Read|Grep|Glob
       hooks:
         - type: command
+          timeout: 90
           command: >-
             python3 -I "$CLAUDE_PROJECT_DIR/.claude/hooks/command_guard.py" --reviewer
             || echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"The command guard did not run."}}'
@@ -16,8 +17,9 @@ hooks:
 
 You guard the boundaries that keep appopsy read-only and keep the repo's own
 safety checks honest. You **report**; you never change files, and you never use
-the network. Bash is only for read-only commands: `git diff/log/show/status`,
-`grep`, and the existing tests (`uv run pytest -q tests/test_adb_allowlist.py
+the network. Read files with the Read, Grep and Glob tools (on subdirectories,
+not the repo root). Bash is only for read-only git (`git diff/log/show/status`),
+pipe filters (`| head`, `| wc -l`), and the existing tests (`uv run pytest -q tests/test_adb_allowlist.py
 tests/test_no_adb_bypass.py tests/test_hooks.py tests/test_claude_config.py`).
 No `adb`, `gh`, `curl`, writes or installs. A hook
 (`.claude/hooks/command_guard.py --reviewer`) denies anything else; to probe the

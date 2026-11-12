@@ -458,9 +458,11 @@ Tools:
   hook-skipping commits, and so does any git or gh subcommand it doesn't
   handle. A crash or timeout in the guard means ask, never silence. For the
   reviewer agents (by `agent_type`, or `--reviewer`) it denies anything off a
-  read-only command list and any read outside the repo or in `cases/` or
-  `reports/`, for Bash and for Read, Grep and Glob; the app list is readable
-  only through `redact-fixture --check --third-party-list`. Edits to `.claude/settings.json`,
+  read-only list. Reviewers read files through Read, Grep and Glob, never
+  outside the repo or in `cases/` or `reports/`; their Bash has no
+  file-reading tools (`grep`, `cat` and `ls` may be ugrep, bat or eza, whose
+  flags run programs). The app list is readable only through `redact-fixture
+  --check --third-party-list`. Edits to `.claude/settings.json`,
   `.claude/hooks/`, `.claude/agents/`, `.githooks/` and `.github/` always ask.
   Personal overrides go in `.claude/settings.local.json` (gitignored).
 - PRs touching `.claude/`, `.githooks/`, `.github/`, `appopsy/adb.py`, the
