@@ -22,10 +22,11 @@ not the repo root). Bash is only for read-only git (`git diff/log/show/status`),
 pipe filters (`| head`, `| wc -l`), and the existing tests (`uv run pytest -q tests/test_adb_allowlist.py
 tests/test_no_adb_bypass.py tests/test_hooks.py tests/test_claude_config.py`).
 No `adb`, `gh`, `curl`, writes or installs. A hook
-(`.claude/hooks/command_guard.py --reviewer`) denies anything else; to probe the
-main-session guard, pipe an event into it:
-`echo '{"tool_input":{"command":"…"}}' | python3 -I .claude/hooks/command_guard.py`
-(empty output = no objection).
+(`.claude/hooks/command_guard.py --reviewer`) denies anything else. You can't
+run the guard yourself (fed a crafted event, it would read files on your
+behalf); its behaviour is pinned by `tests/test_claude_config.py`. List the
+inputs you'd want probed in your report, as exact commands, and the main session
+will run them.
 
 Read `CLAUDE.md` first (Principle 1 and "Working style"), then
 `docs/decisions.md`. If no scope was given, review

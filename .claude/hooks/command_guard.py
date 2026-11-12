@@ -45,6 +45,7 @@ import shlex
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -59,13 +60,13 @@ COVERED_TEXT = re.compile(r"\b(gh|git|uv|pytest|ruff|mypy)\b", re.IGNORECASE)
 GH_API_TEXT = re.compile(r"\bgh\b\s+api\b")
 ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\+?=")  # X=… and X+=…
 HEREDOC = re.compile(r"<<(-?)[ \t]*(?:'([^'\n]+)'|\"([^\"\n]+)\")")
-GUARD_PATH = ".claude/hooks/command_guard.py"
 
 Command = list[str]
 
 # One time budget for the whole decision, well under the hook's timeout in
 # settings.json, so the guard answers before Claude Code would kill it.
 BUDGET_SECONDS = 45.0
+GRACE_SECONDS = 5.0  # how long main() waits past the budget for the worker to finish
 DEADLINE = time.monotonic() + BUDGET_SECONDS
 
 
@@ -161,7 +162,7 @@ def scan(command: str) -> str:
     return "".join(out)
 
 
-def parse(command: str) -> tuple[list[Command], list[str], list[list[str]]]:
+def parse(command: str) -> tuple[list[Command], list[tuple[str, str]], list[list[str]]]:
     """Simple commands (argv), redirection targets, and each command's assignments."""
     text = scan(command)
     try:
@@ -172,7 +173,7 @@ def parse(command: str) -> tuple[list[Command], list[str], list[list[str]]]:
     except ValueError as e:
         raise Refused("a command that can't be parsed") from e
     commands: list[Command] = []
-    targets: list[str] = []
+    targets: list[tuple[str, str]] = []
     current: Command = []
     i = 0
     while i < len(tokens):
@@ -186,7 +187,7 @@ def parse(command: str) -> tuple[list[Command], list[str], list[list[str]]]:
                 current.pop()  # the fd number in `2>&1`
             if i + 1 >= len(tokens):
                 raise Refused("a redirection without a target")
-            targets.append(tokens[i + 1])
+            targets.append((tok, tokens[i + 1]))
             i += 1
         elif set(tok) <= set(";&|()<>"):
             raise Refused(f"the shell operator {tok!r}")
@@ -318,24 +319,74 @@ def check_pr_create(args: Command, roots: Roots) -> None:
     apps_check(texts, files)
 
 
-class Roots:
-    """Where a PR body file may come from: the session scratchpad, or the repo
-    outside its personal-data folders."""
+def private_part(part: str) -> bool:
+    """cases/, reports/ and *.case/ hold personal data at any depth (.gitignore), in
+    any letter case (macOS file systems ignore case)."""
+    folded = part.casefold()
+    return folded in ("cases", "reports") or folded.endswith(".case")
 
-    PRIVATE = ("cases", "reports", ".venv", ".git")
+
+def contained(arg: str, cwd: Path, base: Path) -> tuple[Path, Path] | None:
+    """`arg` as a path under `base`: (lexical, real), or None if it leaves base.
+
+    Checked lexically first, so nothing outside base is ever looked up (resolving
+    /net/<host>/… would make the guard contact a host), then again after symlinks.
+    `..` is refused outright: through a symlink it can mean somewhere else.
+    """
+    raw = Path(arg).expanduser()
+    if ".." in raw.parts:
+        return None
+    lexical = Path(os.path.normpath(cwd / raw))
+    if not lexical.is_relative_to(base):
+        return None
+    real = lexical.resolve()
+    if not real.is_relative_to(base):
+        return None
+    return lexical, real
+
+
+TEMP_ROOTS = tuple(
+    Path(os.path.normpath(t))
+    for t in {
+        "/tmp",  # noqa: S108 (compared, not used)
+        "/private/tmp",
+        tempfile.gettempdir(),
+        os.path.realpath(tempfile.gettempdir()),  # macOS: /var/folders -> /private/var/folders
+    }
+)
+
+
+class Roots:
+    """The project, the session scratchpad and the working directory, for path checks."""
+
+    PUBLISH_PRIVATE = (".git", ".venv")
 
     def __init__(self, project: str, scratchpad: str | None, cwd: str | None) -> None:
         self.project = Path(project).resolve() if project else None
-        self.scratchpad = Path(scratchpad).resolve() if scratchpad else None
         self.cwd = Path(cwd) if cwd else Path.cwd()
+        # The event names the scratchpad; accept it only inside a temp directory (and
+        # not the temp directory itself), and never resolve it.
+        pad = Path(os.path.normpath(scratchpad)) if scratchpad else None
+        self.scratchpad = (
+            pad if pad and any(pad.is_relative_to(t) and pad != t for t in TEMP_ROOTS) else None
+        )
 
     def may_publish(self, name: str) -> bool:
-        path = (self.cwd / Path(name).expanduser()).resolve()
-        if self.scratchpad and path.is_relative_to(self.scratchpad):
-            return True
-        if self.project and path.is_relative_to(self.project):
-            first = path.relative_to(self.project).parts[:1]
-            return bool(first) and first[0] not in self.PRIVATE
+        """A PR body file: a regular file in the scratchpad, or in the repo outside
+        its personal-data and tool folders."""
+        if self.scratchpad and (got := contained(name, self.cwd, self.scratchpad)):
+            return got[1].is_file()
+        if self.project and (got := contained(name, self.cwd, self.project)):
+            lexical, real = got
+            parts = [
+                *lexical.relative_to(self.project).parts,
+                *real.relative_to(self.project).parts,
+            ]
+            if not parts or any(
+                private_part(p) or p.casefold() in self.PUBLISH_PRIVATE for p in parts
+            ):
+                return False
+            return real.is_file()  # not a FIFO or device, which could hang the read
         return False
 
 
@@ -553,6 +604,12 @@ def check_tool(argv: Command) -> None:
             raise Refused(f"{tool} on a path outside the repo")
 
 
+def harmless_redirect(op: str, target: str) -> bool:
+    """To /dev/null, or a file descriptor duplication like `2>&1` (a bare digit after
+    `>` is a file named "1")."""
+    return target == "/dev/null" or (op in (">&", "<&") and target.isdigit())
+
+
 def dequote(command: str) -> str:
     return command.replace('"', "").replace("'", "").replace("\\", "")
 
@@ -599,7 +656,7 @@ def main_check(command: str, roots: Roots) -> None:
             check_git(argv, roots=roots)
         elif any(is_cmd(argv, "uv", "run", t) for t in ("pytest", "ruff", "mypy")):
             check_tool(argv)
-    if any_covered and any(t != "/dev/null" and not t.isdigit() for t in targets):
+    if any_covered and not all(harmless_redirect(op, t) for op, t in targets):
         raise Refused("a pre-approved command redirected into a file")
     if len(GH_API_TEXT.findall(dequote(command))) != gh_api_calls:
         raise Refused("gh api inside quotes or another command; can't confirm it is a GET")
@@ -614,15 +671,15 @@ def main_check(command: str, roots: Roots) -> None:
 # with checked paths, the repo's own check commands, and filters that read only
 # a pipe.
 REVIEWER_GIT = {"status", "diff", "log", "show", "rev-parse", "rev-list", "ls-files",
-                "merge-base"}  # fmt: skip
+                "merge-base", "grep"}  # fmt: skip
 # Options that write, run a program, read outside git, or list ignored files;
 # git accepts unambiguous abbreviations, so prefixes of these count too.
 REVIEWER_GIT_RISKY = ("--output", "--ext-diff", "--textconv", "--no-index", "--ignored",
-                      "--others", "--contents")  # fmt: skip
+                      "--others", "--contents", "--untracked", "--open-files-in-pager",
+                      "--file")  # fmt: skip
 # Pipe filters: no operands (so no files), only these short flags, numbers as values.
 FILTERS = {"head": "nc", "tail": "nc", "wc": "lwcm", "sort": "nrufhVb", "uniq": "cdui"}
 BUILTINS = {"echo", "printf", "true", "pwd"}
-PRIVATE_DIRS = ("cases", "reports")
 SAFE_ASSIGNMENT = re.compile(r"(TZ|LANG|LC_[A-Z]+)=")
 
 
@@ -630,19 +687,19 @@ def readable(arg: str, cwd: Path, roots: Roots) -> bool:
     """A path a reviewer may read: inside the repo (after symlinks), not in cases/ or
     reports/ in any letter case (macOS file systems ignore case). The app list is
     outside the repo, so it never qualifies."""
-    if roots.project is None:
+    if roots.project is None or not (got := contained(arg, cwd, roots.project)):
         return False
-    path = (cwd / Path(arg).expanduser()).resolve()
-    if not path.is_relative_to(roots.project):
-        return False
-    parts = path.relative_to(roots.project).parts
-    return not (parts and parts[0].casefold() in PRIVATE_DIRS)
+    lexical, real = got
+    parts = [*lexical.relative_to(roots.project).parts, *real.relative_to(roots.project).parts]
+    return not any(private_part(p) for p in parts)
 
 
 def is_root(arg: str, cwd: Path, roots: Roots) -> bool:
     """The repo root: cases/ and reports/ live directly under it, so a recursive read
     from there reaches them. Recursive reads must name subdirectories."""
-    return roots.project is not None and (cwd / Path(arg).expanduser()).resolve() == roots.project
+    if roots.project is None or not (got := contained(arg, cwd, roots.project)):
+        return False
+    return got[1] == roots.project
 
 
 def risky_git_option(arg: str) -> bool:
@@ -667,6 +724,8 @@ def check_reviewer_git(argv: Command) -> None:
             )
         if sub == "ls-files" and short_group(a, "oi"):
             raise Refused("git ls-files listing ignored or untracked files")
+        if sub == "grep" and short_group(a, "Of"):
+            raise Refused("git grep -O (runs a program) or -f (reads a pattern file)")
         if not a.startswith("-") and (
             a.startswith(("/", "~")) or ".." in Path(a.split(":", 1)[-1]).parts
         ):
@@ -715,12 +774,31 @@ def check_appopsy(argv: Command, cwd: Path, roots: Roots) -> None:
             raise Refused(f"reading {a!r} (outside the repo, or in cases/ or reports/)")
 
 
+def check_filter(argv: Command) -> None:
+    """A pipe filter: its own short flags only, and a number only as the value of
+    head/tail -n/-c, so no operand can name a file to read or (uniq) write."""
+    name, letters = argv[0], FILTERS[argv[0]]
+    counts = name in ("head", "tail")
+    it = iter(argv[1:])
+    for a in it:
+        if re.fullmatch(r"-\d+", a):
+            continue
+        m = re.fullmatch(rf"-([{letters}]+)(\d*)", a)
+        takes_value = bool(m) and counts and m.group(1)[-1] in "nc"
+        if not m or (m.group(2) and not takes_value):
+            raise Refused(
+                f"{name} {a!r}: reviewers' filters only read a pipe (use the Read and Grep "
+                "tools for files)"
+            )
+        if takes_value and not m.group(2) and not (next(it, "") or "x").isdigit():
+            raise Refused(f"{name} {a} without a number")
+
+
 def reviewer_check(command: str, roots: Roots) -> None:
     commands, targets, assignments = parse(command)
-    for t in targets:
-        if t != "/dev/null" and not t.isdigit():
-            raise Refused(f"redirection into or from {t!r}")
-    project = str(roots.project or "")
+    for op, t in targets:
+        if not harmless_redirect(op, t):
+            raise Refused(f"redirection {op} {t!r}")
     cwd = roots.cwd
     for argv, assigned in zip(commands, assignments, strict=True):
         if any(not SAFE_ASSIGNMENT.match(a) for a in assigned):
@@ -731,13 +809,7 @@ def reviewer_check(command: str, roots: Roots) -> None:
         if name == "git":
             check_reviewer_git(argv)
         elif name in FILTERS:
-            letters = FILTERS[name]
-            for a in argv[1:]:
-                if not re.fullmatch(rf"-[{letters}]+\d*|-\d+|\d+", a):
-                    raise Refused(
-                        f"{name} {a!r}: reviewers' filters only read a pipe (use the Read and "
-                        "Grep tools for files)"
-                    )
+            check_filter(argv)
         elif name in BUILTINS:
             pass
         elif is_cmd(argv, "uv", "run", "appopsy") and argv[3:4] in (["mask"], ["redact-fixture"]):
@@ -750,13 +822,6 @@ def reviewer_check(command: str, roots: Roots) -> None:
             for flag, value in Flags(args, PYTEST_BOOL, PYTEST_VALUE).walk():
                 if not flag and not readable(value or "", cwd, roots):
                     raise Refused("pytest on a path in cases/ or reports/")
-        elif (
-            name in ("python3", "python")
-            and argv[1:2] == ["-I"]
-            and argv[2:3] in ([GUARD_PATH], [f"{project}/{GUARD_PATH}"])
-            and argv[3:] in ([], ["--reviewer"])
-        ):
-            pass  # probing this guard
         else:
             raise Refused(
                 f"{name} isn't on the reviewers' Bash list (read files with the Read, Grep "
@@ -779,15 +844,15 @@ def reviewer_file_check(tool: str, tool_input: dict[str, object], roots: Roots) 
         if (
             pattern.startswith(("/", "~"))
             or ".." in parts
-            or set(pattern) & set("{}")
-            or any(part.casefold() in PRIVATE_DIRS for part in parts)
+            or set(pattern) & set("{}\\()!@+")  # braces, escapes, extglob
+            or any(private_part(part) for part in parts)
         ):
             raise Refused(
                 f"{tool} pattern {pattern!r} reaching outside the repo or into cases/ or reports/"
             )
     if tool in ("Grep", "Glob") and is_root(target, roots.cwd, roots):
         first = Path(pattern).parts[0] if isinstance(pattern, str) and pattern else "*"
-        if tool == "Grep" or set(first) & set("*?["):
+        if tool == "Grep" or not re.fullmatch(r"[A-Za-z0-9._-]+", first):
             raise Refused(
                 f"{tool} across the repo root (it would reach cases/ and reports/); "
                 "give a subdirectory as the path"
@@ -834,14 +899,27 @@ def decide(mode: dict[str, bool]) -> str | None:
     return None
 
 
+_exit = os._exit  # replaced in tests
+
+
 def main() -> int:
+    """Decide in a worker thread and answer by the deadline whatever happens: a crash,
+    a timeout, or a path lookup that hangs all mean ask (deny for a reviewer)."""
     global DEADLINE
     DEADLINE = time.monotonic() + BUDGET_SECONDS
     mode = {"reviewer": "--reviewer" in sys.argv[1:]}
-    try:
-        reason = decide(mode)
-    except Exception as e:  # fail closed: a crash must never mean "allowed"
-        reason = f"the guard failed ({type(e).__name__}), so it can't vouch for this"
+    result: dict[str, str | None] = {}
+
+    def work() -> None:
+        try:
+            result["reason"] = decide(mode)
+        except Exception as e:  # fail closed: a crash must never mean "allowed"
+            result["reason"] = f"the guard failed ({type(e).__name__}), so it can't vouch for this"
+
+    worker = threading.Thread(target=work, daemon=True)
+    worker.start()
+    worker.join(BUDGET_SECONDS + GRACE_SECONDS)
+    reason = result.get("reason", "the guard ran out of time checking this")
     if reason:
         reviewer = mode["reviewer"]
         out = {
@@ -854,7 +932,9 @@ def main() -> int:
                 ),
             }
         }
-        print(json.dumps(out))
+        print(json.dumps(out), flush=True)
+    if worker.is_alive():
+        _exit(0)  # don't wait for a hung lookup in the worker
     return 0
 
 

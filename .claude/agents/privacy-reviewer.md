@@ -37,7 +37,7 @@ you enforce), then the scope you were given. If no scope was given, review
   The helper reads `~/.config/appopsy/my-apps.txt`. If that file is missing,
   stop and say so: the review can't be done without it. Never print the list.
 - **Read files with the Read, Grep and Glob tools.** Bash is only for
-  read-only git (`diff/log/show/status/ls-files`), `uv run appopsy
+  read-only git (`diff/log/show/status/ls-files/grep`), `uv run appopsy
   redact-fixture --check …`, `uv run appopsy mask`, `uv run pytest`, and pipe
   filters (`| head`, `| wc -l`, `| sort | uniq -c`). No `grep`, `cat`, `ls`,
   `find` or `cd` in Bash, and no `curl`, `gh`, `adb`, writes or anything else.

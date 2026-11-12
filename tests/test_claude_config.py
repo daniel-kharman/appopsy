@@ -11,6 +11,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 import types
 from pathlib import Path
 
@@ -360,6 +361,26 @@ def test_pr_body_files_only_from_the_repo_or_scratchpad(tmp_path: Path) -> None:
     # Outside both roots, or in the repo's personal-data folders: ask.
     assert run_hook(ok, env=env, scratchpad=tmp_path / "other") == "ask"
     assert run_hook("gh pr create -t a -F cases/x/raw/getprop.txt", env=env) == "ask"
+    # Any letter case, any depth, *.case, tool folders, `..` (fifth review)
+    for body_file in (
+        "CASES/x/raw/getprop.txt",
+        "Cases/x/raw/getprop.txt",
+        "Reports/r.md",
+        "tests/cases/x.txt",
+        "docs/x.case/raw.txt",
+        ".GIT/config",
+        ".venv/pyvenv.cfg",
+        "docs/../cases/x",
+        "README.md/..",
+    ):
+        command = f"gh pr create -t a -F {body_file}"
+        assert run_hook(command, env=env, cwd=VENV.parent) == "ask", body_file
+    # A scratchpad outside a temp directory is ignored, so "/" can't open everything.
+    assert run_hook("gh pr create -t a -F /etc/shells", env=env, scratchpad=Path("/")) == "ask"
+    # Only regular files: a FIFO would hang the read.
+    fifo = pad / "body.fifo"
+    os.mkfifo(fifo)
+    assert run_hook(f"gh pr create -t a -F {fifo}", env=env, scratchpad=pad) == "ask"
 
 
 def test_pr_text_that_cant_be_checked_asks(tmp_path: Path) -> None:
@@ -381,7 +402,11 @@ REVIEWER_OK = [
     "uv run appopsy redact-fixture --check --apps-only --third-party-list ~/.config/appopsy/my-apps.txt .",
     "uv run appopsy mask tests/fixtures/17-google/capture-5/getprop.txt",
     "uv run pytest -q tests/test_adb_allowlist.py",
-    """echo '{"tool_input":{"command":"gh api -X POST x"}}' | python3 -I .claude/hooks/command_guard.py""",
+    "git log | head -n 5",
+    "git log | head -5",
+    "git log | tail -n5",
+    "git diff 2>&1 | head",
+    "git grep -n foo -- docs",
 ]
 
 REVIEWER_DENIED = [
@@ -449,6 +474,24 @@ REVIEWER_DENIED = [
     "cd docs",
     "cd; cat .config/appopsy/my-apps.txt",
     "stat README.md",
+    # Fifth review: digit redirect targets are files; filter operands; the probe
+    "echo x > 1",
+    "git show HEAD:CLAUDE.md >> 2",
+    "uniq 1 2",
+    "head 1",
+    "head -n",
+    "head -n x",
+    "wc -l5",
+    """echo '{"tool_input":{"command":"gh api -X POST x"}}' | python3 -I .claude/hooks/command_guard.py""",
+    # git grep: tracked files only, no pager program, no pattern files
+    "git grep -O sh foo",
+    "git grep -Osh foo",
+    "git grep --open-files-in-pager=sh x",
+    "git grep --untracked x",
+    "git grep --unt x",
+    "git grep -f cases/x y",
+    "git grep --file=cases/x y",
+    "git grep --no-index x /etc",
     # git reading outside the repo or listing ignored files (fourth review)
     "git diff /dev/null ~/.config/appopsy/my-apps.txt",
     "git diff --stat /etc/shells /etc/hosts",
@@ -547,6 +590,17 @@ APP_LIST = str(Path("~/.config/appopsy/my-apps.txt").expanduser())
         ("Read", {"file_path": str(VENV.parent / "Reports" / "r.md")}),
         ("Grep", {"pattern": "x", "path": str(VENV.parent / "Cases")}),
         ("Glob", {"pattern": "Cases/**", "path": str(VENV.parent)}),
+        # Nested private folders, *.case, `..`, lookups outside the repo (fifth review)
+        ("Read", {"file_path": str(VENV.parent / "tests" / "cases" / "x")}),
+        ("Read", {"file_path": str(VENV.parent / "docs" / "x.case" / "y")}),
+        ("Read", {"file_path": str(VENV.parent / "docs" / ".." / "README.md")}),
+        ("Read", {"file_path": "/net/example.invalid/../Users/x"}),
+        # Escapes and extglob in patterns at the root (fifth review)
+        ("Glob", {"pattern": "\\cases/*", "path": str(VENV.parent)}),
+        ("Glob", {"pattern": "@(cases)/*", "path": str(VENV.parent)}),
+        ("Glob", {"pattern": "!(docs)/*", "path": str(VENV.parent)}),
+        ("Glob", {"pattern": "+(c)ases/*", "path": str(VENV.parent)}),
+        ("Glob", {"pattern": "c?ses/*", "path": str(VENV.parent)}),
         # Brace patterns (fourth review)
         ("Glob", {"pattern": "{..}/{cases}/**", "path": str(VENV.parent / "docs")}),
         ("Grep", {"pattern": "x", "path": str(VENV.parent / "docs"), "glob": "{a,b}"}),
@@ -941,3 +995,23 @@ def test_a_spent_time_budget_refuses(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(guard, "DEADLINE", 0.0)
     with pytest.raises(guard.Refused, match="out of time"):
         guard.budget(10)
+
+
+def test_a_hung_decision_still_answers_by_the_deadline(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A lookup that never returns (an automount, a FIFO) must not outlive the hook:
+    the main thread answers at the deadline and exits."""
+    guard = load_guard()
+    exits: list[int] = []
+    monkeypatch.setattr(guard, "BUDGET_SECONDS", 0.2)
+    monkeypatch.setattr(guard, "GRACE_SECONDS", 0.0)
+    monkeypatch.setattr(guard, "_exit", exits.append)
+    monkeypatch.setattr(guard, "decide", lambda mode: time.sleep(30))
+    for argv, expected in (([], "ask"), (["--reviewer"], "deny")):
+        monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(BASH)))
+        monkeypatch.setattr(sys, "argv", ["command_guard.py", *argv])
+        assert guard.main() == 0
+        out = json.loads(capsys.readouterr().out)
+        assert out["hookSpecificOutput"]["permissionDecision"] == expected
+    assert exits == [0, 0]
