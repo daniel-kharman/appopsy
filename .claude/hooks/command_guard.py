@@ -313,10 +313,16 @@ def check_pr_create(args: Command, roots: Roots) -> None:
             files.append(value or "")
     if "-" in files:
         raise Refused("gh pr create with the body on stdin, which can't be checked")
+    checked: list[str] = []
     for f in files:
-        if not roots.may_publish(f):
-            raise Refused("gh pr create publishing a file from outside the repo and scratchpad")
-    apps_check(texts, files)
+        real = roots.may_publish(f)
+        if real is None:
+            raise Refused(
+                "gh pr create publishing a file other than a scratchpad .md or a repo file "
+                "outside cases/ and reports/"
+            )
+        checked.append(str(real))  # read exactly the file that was checked
+    apps_check(texts, checked)
 
 
 def private_part(part: str) -> bool:
@@ -371,23 +377,27 @@ class Roots:
             pad if pad and any(pad.is_relative_to(t) and pad != t for t in TEMP_ROOTS) else None
         )
 
-    def may_publish(self, name: str) -> bool:
-        """A PR body file: a regular file in the scratchpad, or in the repo outside
-        its personal-data and tool folders."""
-        if self.scratchpad and (got := contained(name, self.cwd, self.scratchpad)):
-            return got[1].is_file()
-        if self.project and (got := contained(name, self.cwd, self.project)):
+    def may_publish(self, name: str) -> Path | None:
+        """The checked path of a file that may be published (a PR body, a commit
+        message), or None: a Markdown file directly in the scratchpad (where raw
+        captures may also live, in subfolders), or a file in the repo outside its
+        personal-data and tool folders. Only regular files: a FIFO or device could
+        hang the read."""
+        for base, top_level_md in ((self.scratchpad, True), (self.project, False)):
+            if base is None or not (got := contained(name, self.cwd, base)):
+                continue
             lexical, real = got
-            parts = [
-                *lexical.relative_to(self.project).parts,
-                *real.relative_to(self.project).parts,
-            ]
+            parts = [*lexical.relative_to(base).parts, *real.relative_to(base).parts]
             if not parts or any(
                 private_part(p) or p.casefold() in self.PUBLISH_PRIVATE for p in parts
             ):
-                return False
-            return real.is_file()  # not a FIFO or device, which could hang the read
-        return False
+                return None
+            if top_level_md and (
+                lexical.parent != base or real.parent != base or real.suffix.lower() != ".md"
+            ):
+                return None
+            return real if real.is_file() else None
+        return None
 
 
 def apps_check(texts: list[str], files: list[str]) -> None:
@@ -465,7 +475,7 @@ def check_git(argv: Command, *, reviewer: bool = False, roots: Roots | None = No
     if reviewer:
         raise Refused(f"git {sub} isn't read-only")
     if sub == "commit":
-        check_commit(args)
+        check_commit(args, roots)
     elif sub == "add":
         for a in args:
             if (
@@ -552,19 +562,29 @@ def check_push(args: Command, roots: Roots | None) -> None:
         raise Refused("git push without core.hooksPath=.githooks (the pre-push hook wouldn't run)")
 
 
-def check_commit(args: Command) -> None:
+def check_message_file(name: str, roots: Roots | None) -> None:
+    """A commit message file is published with the commit: the same rules as a PR body
+    (stdin, `-F -`, is how /ship writes messages)."""
+    if name != "-" and (roots is None or roots.may_publish(name) is None):
+        raise Refused(f"git commit -F {name!r} (only stdin, a scratchpad .md or a repo file)")
+
+
+def check_commit(args: Command, roots: Roots | None = None) -> None:
     it = iter(args)
     for a in it:
         if a == "--":
             break
         if not a.startswith("-"):
             continue  # a pathspec
-        name, eq, _ = a.partition("=") if a.startswith("--") else (a, "", "")
+        name, eq, value = a.partition("=") if a.startswith("--") else (a, "", "")
         if a in COMMIT_BOOL:
             continue
         if name in COMMIT_VALUE:
-            if not eq and next(it, None) is None:
+            target = value if eq else next(it, None)
+            if target is None:
                 raise Refused(f"git commit {name} without a value")
+            if name in ("-F", "--file"):
+                check_message_file(target, roots)
             continue
         if a.startswith("--"):
             raise Refused(f"git commit {a} (hooks must run; unknown options ask)")
@@ -572,8 +592,11 @@ def check_commit(args: Command) -> None:
             if ch in "qas":
                 continue
             if ch in "mF":
-                if k == len(a) - 2 and next(it, None) is None:
+                target = a[k + 2 :] or next(it, None)
+                if target is None:
                     raise Refused(f"git commit -{ch} without a value")
+                if ch == "F":
+                    check_message_file(target, roots)
                 break
             raise Refused(f"git commit -{ch} (-n skips the hooks; unknown options ask)")
 
@@ -733,14 +756,12 @@ def check_reviewer_git(argv: Command) -> None:
             raise Refused(f"git {sub} on {a!r}, outside the repo")
 
 
-def app_list_path() -> Path:
-    return (
-        Path(
-            os.environ.get("APPOPSY_THIRD_PARTY_LIST", Path.home() / ".config/appopsy/my-apps.txt")
-        )
-        .expanduser()
-        .resolve()
-    )
+def app_list_path(*, resolved: bool = True) -> Path:
+    """The maintainer's app list (a trusted location: from the environment or the default)."""
+    path = Path(
+        os.environ.get("APPOPSY_THIRD_PARTY_LIST", Path.home() / ".config/appopsy/my-apps.txt")
+    ).expanduser()
+    return path.resolve() if resolved else Path(os.path.normpath(path))
 
 
 def check_appopsy(argv: Command, cwd: Path, roots: Roots) -> None:
@@ -759,7 +780,8 @@ def check_appopsy(argv: Command, cwd: Path, roots: Roots) -> None:
             if sub != "redact-fixture":
                 raise Refused("only redact-fixture --check may read the app list")
             listed = value if eq else next(it, "")
-            if Path(listed).expanduser().resolve() != app_list_path():
+            written = Path(os.path.normpath(Path(listed).expanduser()))  # never looked up
+            if written not in (app_list_path(), app_list_path(resolved=False)):
                 raise Refused("--third-party-list other than your app list")
         elif name == "--packages":
             target = value if eq else next(it, "")

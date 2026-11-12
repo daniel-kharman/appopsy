@@ -185,6 +185,12 @@ NOT_ROUTINE = [
     "git switch -c x --dis",
     'git commit -m "$(cat msg.txt)"',
     "git commit -n -F - <<EOF\nunquoted heredoc expands $x\nEOF",
+    # A message file is published with the commit (sixth review)
+    "git commit -F cases/x/raw/getprop.txt",
+    "git commit --file=CASES/x/raw/getprop.txt",
+    "git commit -qFcases/x/raw/getprop.txt",
+    "git commit -F /etc/hosts",
+    "git commit -F docs/../cases/x",
     "git commit -n -F - <<'EOF'\nsay \"hi\nEOF",
     "git commit -m 'x' \\\n -n",
     "git log -- *.py",
@@ -375,6 +381,17 @@ def test_pr_body_files_only_from_the_repo_or_scratchpad(tmp_path: Path) -> None:
     ):
         command = f"gh pr create -t a -F {body_file}"
         assert run_hook(command, env=env, cwd=VENV.parent) == "ask", body_file
+    # In the scratchpad, only Markdown directly in it: raw captures live in subfolders
+    # (sixth review).
+    raw = pad / "cases" / "x" / "raw"
+    raw.mkdir(parents=True)
+    (raw / "getprop.txt").write_text("[ro.serialno]: [SERIAL]\n")
+    (pad / "notes.txt").write_text("x\n")
+    (pad / "sub").mkdir()
+    (pad / "sub" / "body.md").write_text("x\n")
+    for body_file in (raw / "getprop.txt", pad / "notes.txt", pad / "sub" / "body.md"):
+        command = f"gh pr create -t a -F {body_file}"
+        assert run_hook(command, env=env, scratchpad=pad) == "ask", body_file
     # A scratchpad outside a temp directory is ignored, so "/" can't open everything.
     assert run_hook("gh pr create -t a -F /etc/shells", env=env, scratchpad=Path("/")) == "ask"
     # Only regular files: a FIFO would hang the read.
@@ -518,6 +535,7 @@ REVIEWER_DENIED = [
     "uv run appopsy mask ~/.config/appopsy/my-apps.txt",
     "uv run appopsy mask --third-party-list ~/.config/appopsy/my-apps.txt docs/x.md",
     "uv run appopsy redact-fixture --check --third-party-list /etc/hosts tests/fixtures",
+    "uv run appopsy redact-fixture --check --third-party-list /net/example.invalid/x tests/fixtures",
     "uv run appopsy redact-fixture --check --packages ~/.config/appopsy/my-apps.txt tests/fixtures",
     # Outside the repo, or in cases/ or reports/
     "cat /etc/hosts",

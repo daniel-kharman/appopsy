@@ -133,3 +133,39 @@ and paths that no longer exist at HEAD. Squashing removes every history-only
 item in one step; filtering would need each one cleaned, commit messages too.
 A new repository also leaves behind GitHub's copies of old commits, orphaned
 objects and Actions logs, which rewriting history in place would not remove.
+
+## 11. A command guard that fails closed, with known limits
+
+**Decision.** `.claude/settings.json` pre-approves routine commands, and
+`.claude/hooks/command_guard.py` reads every Bash, Read, Grep and Glob call to
+keep them routine. It refuses anything it can't fully account for: shell
+expansions, unknown flags, unhandled git or gh subcommands, private paths
+(`cases/`, `reports/`, `*.case/`, in any letter case). It answers "ask" (deny
+for the reviewer agents) when it refuses, crashes or runs out of time. Reviewer
+agents read files only through Read, Grep and Glob inside the repo; their Bash
+has no file-reading tools, and the app list is readable only through
+`redact-fixture --check --third-party-list`.
+
+**Why.** Permission rules match only a command's prefix, so `git commit *`
+also approves `git commit -n`, which skips the hooks. Each review of the guard
+found shell or tool behaviour that a list of known-bad forms missed (on some
+machines `grep`, `cat` and `ls` are ugrep, bat and eza), so the guard allows
+only what it understands.
+
+**Known limits** (accepted; the guard reduces risk, it isn't a sandbox):
+- `uv run pytest` runs the branch's code with the user's rights, and may sync
+  dependencies from the network. Reviewers running tests run the code under
+  review. External contributors' branches therefore only run in the sandbox or
+  a devcontainer.
+- `appopsy mask` reads the app list to mask it, so piping chosen text into it
+  answers "is this one of my apps". Reviewers need it, so it stays.
+- Private folders are refused by path. A recursive search from an allowed
+  subdirectory still reaches a `cases/` folder nested under it, and a symlink
+  or hard link inside the repo beats the path checks once someone creates it.
+- Programs configured in git config or attributes (textconv, `diff.external`,
+  filters, fsmonitor) run under read-only git commands.
+- A PR body or commit message file is checked for app names, not for other
+  identifiers. Raw captures stay out of reach by path (scratchpad bodies must be
+  `.md` files directly in it), not by content.
+- The guard relies on Claude Code calling it. Hard boundaries need Claude
+  Code's sandbox; that is a separate change.
