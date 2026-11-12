@@ -392,6 +392,15 @@ def test_pr_body_files_only_from_the_repo_or_scratchpad(tmp_path: Path) -> None:
     for body_file in (raw / "getprop.txt", pad / "notes.txt", pad / "sub" / "body.md"):
         command = f"gh pr create -t a -F {body_file}"
         assert run_hook(command, env=env, scratchpad=pad) == "ask", body_file
+    # A top-level .md that is a symlink into a raw capture is refused too.
+    (pad / "link.md").symlink_to(raw / "getprop.txt")
+    assert run_hook(f"gh pr create -t a -F {pad / 'link.md'}", env=env, scratchpad=pad) == "ask"
+    # Commit message files follow the same rules; stdin and a repo file stay routine.
+    assert run_hook(f"git commit -F {pad / 'link.md'}", scratchpad=pad) == "ask"
+    assert run_hook(f"git commit -F {raw / 'getprop.txt'}", scratchpad=pad) == "ask"
+    assert run_hook(f"git commit -F {pad / 'body.md'}", scratchpad=pad) is None
+    for routine in ("git commit -qF-", "git commit -F -", "git commit -F docs/decisions.md"):
+        assert run_hook(routine, cwd=VENV.parent) is None, routine
     # A scratchpad outside a temp directory is ignored, so "/" can't open everything.
     assert run_hook("gh pr create -t a -F /etc/shells", env=env, scratchpad=Path("/")) == "ask"
     # Only regular files: a FIFO would hang the read.
@@ -536,6 +545,7 @@ REVIEWER_DENIED = [
     "uv run appopsy mask --third-party-list ~/.config/appopsy/my-apps.txt docs/x.md",
     "uv run appopsy redact-fixture --check --third-party-list /etc/hosts tests/fixtures",
     "uv run appopsy redact-fixture --check --third-party-list /net/example.invalid/x tests/fixtures",
+    "uv run appopsy redact-fixture --check --third-party-list ~/.config/appopsy/x/../my-apps.txt tests/fixtures",
     "uv run appopsy redact-fixture --check --packages ~/.config/appopsy/my-apps.txt tests/fixtures",
     # Outside the repo, or in cases/ or reports/
     "cat /etc/hosts",

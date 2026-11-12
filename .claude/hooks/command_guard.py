@@ -780,6 +780,8 @@ def check_appopsy(argv: Command, cwd: Path, roots: Roots) -> None:
             if sub != "redact-fixture":
                 raise Refused("only redact-fixture --check may read the app list")
             listed = value if eq else next(it, "")
+            if ".." in Path(listed).parts:  # through a symlink, `..` can mean elsewhere
+                raise Refused("--third-party-list with `..`")
             written = Path(os.path.normpath(Path(listed).expanduser()))  # never looked up
             if written not in (app_list_path(), app_list_path(resolved=False)):
                 raise Refused("--third-party-list other than your app list")
