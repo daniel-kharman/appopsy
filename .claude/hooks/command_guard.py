@@ -1,29 +1,29 @@
 #!/usr/bin/env python3
 """PreToolUse hook for Bash: the commands .claude/settings.json pre-approves are
 safe only in their routine forms, and a permission rule can only match a prefix.
-This hook reads the whole command and closes the gap.
+This hook reads the whole command and **fails closed**: whatever it can't fully
+account for is not routine.
 
-Default mode (the main session) answers "ask" when a pre-approved command is used
-in a form that isn't routine:
+1. A character scan runs before any parsing. Outside single quotes, anything the
+   shell would expand or reinterpret (`$`, backticks, braces, globs, `#`,
+   backslashes) is refused; a quoted heredoc body (`<<'EOF'`) is literal and
+   allowed; an unquoted newline separates commands.
+2. Each pre-approved command is then checked against an allowlist of its
+   flags. An unknown flag, an environment assignment or a git global option in
+   front of it, or a path outside the repo is refused.
 
-- `gh api` that isn't plainly a GET: any method but GET, request fields or a body
-  without `-X GET`, `--input`, `graphql`, a method-override header, or any flag
-  it doesn't know (flags are an allowlist, so combined short flags like
-  `-iXDELETE` and a value flag hiding a fake `-XGET` both ask);
-- `gh pr create` for another repo (`-R`), or whose title or body names one of the
-  maintainer's apps (the apps-only check runs on the text; the PR is public);
-- `git commit` that skips the hooks (`-n`, `--no-v…`, any `hooksPath`), `git add`
-  of ignored files (`-f`), `git switch`/`checkout` that discards work, and
-  `git diff/log/show --output=FILE`;
-- pytest, ruff and mypy flags that write or delete outside the repo or upload
-  (`--basetemp`, `--junit…`, `--pastebin`, `-o`, `--output-file`, reports).
+Default mode (the main session) answers "ask" for a refused command, and only
+when it involves a command settings.json pre-approves (gh, git, uv); everything
+else gets the normal permission prompt anyway. Notable refusals: `gh api` that
+isn't a plain GET to github.com, `gh pr create` for another repo or whose text
+names one of the maintainer's apps (the apps-only check runs on it), commits
+that skip hooks, `git add -f`, and tool flags that write, delete or upload.
 
 `--reviewer` mode (wired into the read-only reviewer agents) answers "deny" to
-any command that isn't on a short read-only list, and to any redirection into a
-file, so a reviewer can't write, push, or reach the network even though Bash
-inherits the project's allow rules.
+any command that isn't on a short read-only list, or that redirects into a
+file.
 
-Asking is always safe: the hook never allows anything. Standard library only.
+The hook never allows anything. Standard library only.
 """
 
 from __future__ import annotations
@@ -37,24 +37,106 @@ import sys
 import tempfile
 from pathlib import Path
 
-SEPARATORS = {";", "&&", "||", "|", "|&", "&", "(", ")", "\n", ";;"}
-REDIRECT_OPS = {">", ">>", "<", ">&", "<&", "&>", "&>>", ">|", "<<", "<<<"}
+SEPARATORS = {";", "&&", "||", "|", "|&", "&", "(", ")", ";;"}
+REDIRECT_OPS = {">", ">>", "<", ">&", "<&", "&>", "&>>", ">|", "<<<"}
 WRAPPERS = {"timeout", "time", "nice", "nohup", "stdbuf", "command", "builtin", "noglob"}
+COVERED_TEXT = re.compile(r"\b(gh|git|uv|pytest|ruff|mypy)\b")
 GH_API_TEXT = re.compile(r"\bgh\b\s+api\b")
 ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
-EXPANSION = re.compile(r"\$[({A-Za-z_]|`")
+HEREDOC = re.compile(r"<<(-?)[ \t]*(?:'([^'\n]+)'|\"([^\"\n]+)\")")
+GUARD_PATH = ".claude/hooks/command_guard.py"
 
 Command = list[str]
 
 
-def parse(command: str) -> tuple[list[Command], list[str]] | None:
-    """Simple commands (argv lists) and redirection targets, or None if unparseable."""
+class Refused(Exception):
+    """The command uses something the guard won't vouch for."""
+
+
+# --- 1. Character scan --------------------------------------------------------
+
+
+def scan(command: str) -> str:
+    """The command with quoted heredoc bodies removed and unquoted newlines as `;`.
+
+    Raises Refused for anything the shell would expand or reinterpret.
+    """
+    out: list[str] = []
+    pending: list[tuple[str, bool]] = []  # heredoc delimiters awaiting their body
+    i, n = 0, len(command)
+    word_start = True
+    while i < n:
+        c = command[i]
+        if c == "'":
+            end = command.find("'", i + 1)
+            if end < 0:
+                raise Refused("unbalanced quotes")
+            out.append(command[i : end + 1])
+            i, word_start = end + 1, False
+            continue
+        if c == '"':
+            j = i + 1
+            while j < n and command[j] != '"':
+                if command[j] in "$`\\":
+                    raise Refused("expansion or escape inside double quotes")
+                j += 1
+            if j >= n:
+                raise Refused("unbalanced quotes")
+            out.append(command[i : j + 1])
+            i, word_start = j + 1, False
+            continue
+        if command.startswith("<<", i) and not command.startswith("<<<", i):
+            m = HEREDOC.match(command, i)
+            if not m:
+                raise Refused("a heredoc whose delimiter isn't quoted (its body would expand)")
+            pending.append((m.group(2) or m.group(3), m.group(1) == "-"))
+            i, word_start = m.end(), True
+            continue
+        if c == "\n":
+            i += 1
+            for delimiter, strip_tabs in pending:
+                while True:
+                    end = command.find("\n", i)
+                    line = command[i:] if end < 0 else command[i:end]
+                    i = n if end < 0 else end + 1
+                    if (line.lstrip("\t") if strip_tabs else line) == delimiter:
+                        break
+                    if end < 0:
+                        raise Refused("a heredoc without its closing delimiter")
+            pending = []
+            out.append(" ; ")
+            word_start = True
+            continue
+        if c in "$`":
+            raise Refused("command, variable or ANSI-C expansion")
+        if c in "{}":
+            raise Refused("brace expansion")
+        if c in "*?[]":
+            raise Refused("a glob outside quotes")
+        if c == "\\":
+            raise Refused("a backslash outside quotes")
+        if c == "#":
+            raise Refused("# outside quotes")
+        if c == "~" and not (word_start and command.startswith("~/", i)):
+            raise Refused("~ other than ~/ at the start of a word")
+        out.append(c)
+        word_start = c in " \t;&|()<>"
+        i += 1
+    if pending:
+        raise Refused("a heredoc without its body")
+    return "".join(out)
+
+
+def parse(command: str) -> tuple[list[Command], list[str], list[list[str]]]:
+    """Simple commands (argv), redirection targets, and each command's assignments."""
+    text = scan(command)
     try:
-        lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|()<>")
+        lexer = shlex.shlex(text, posix=True, punctuation_chars=";&|()<>")
         lexer.whitespace_split = True
+        lexer.commenters = ""
         tokens = list(lexer)
-    except ValueError:
-        return None
+    except ValueError as e:
+        raise Refused("a command that can't be parsed") from e
     commands: list[Command] = []
     targets: list[str] = []
     current: Command = []
@@ -68,28 +150,34 @@ def parse(command: str) -> tuple[list[Command], list[str]] | None:
         elif tok in REDIRECT_OPS:
             if current and current[-1].isdigit():
                 current.pop()  # the fd number in `2>&1`
-            if i + 1 < len(tokens):
-                targets.append(tokens[i + 1])
-                i += 1
+            if i + 1 >= len(tokens):
+                raise Refused("a redirection without a target")
+            targets.append(tokens[i + 1])
+            i += 1
+        elif set(tok) <= set(";&|()<>"):
+            raise Refused(f"the shell operator {tok!r}")
         else:
             current.append(tok)
         i += 1
     if current:
         commands.append(current)
-    return commands, targets
-
-
-def strip_prefix(argv: Command) -> tuple[Command, list[str]]:
-    """Drop leading VAR=value assignments and wrapper commands; return the assignments."""
-    assignments: list[str] = []
-    while argv and ASSIGNMENT.match(argv[0]):
-        assignments.append(argv[0])
-        argv = argv[1:]
-    while argv and Path(argv[0]).name in WRAPPERS:
-        argv = argv[1:]
-        while argv and (argv[0].startswith("-") or argv[0][:1].isdigit()):
+    assignments: list[list[str]] = []
+    stripped: list[Command] = []
+    for argv in commands:
+        assigned: list[str] = []
+        while argv and ASSIGNMENT.match(argv[0]):
+            assigned.append(argv[0])
             argv = argv[1:]
-    return argv, assignments
+        while argv and Path(argv[0]).name in WRAPPERS:
+            argv = argv[1:]
+            while argv and (argv[0].startswith("-") or argv[0][:1].isdigit()):
+                argv = argv[1:]
+        stripped.append(argv)
+        assignments.append(assigned)
+    return stripped, targets, assignments
+
+
+# --- 2. Per-command allowlists ---------------------------------------------------
 
 
 def is_cmd(argv: Command, *words: str) -> bool:
@@ -100,94 +188,109 @@ def is_cmd(argv: Command, *words: str) -> bool:
     )
 
 
-# --- gh api ------------------------------------------------------------------
-
-GH_BOOL = {"-i", "--include", "--paginate", "--silent", "--slurp", "--verbose"}
-GH_VALUE = {"-H", "--header", "-q", "--jq", "-t", "--template", "-p", "--preview",
-            "--hostname", "--cache"}  # fmt: skip
-GH_FIELD = {"-f", "--raw-field", "-F", "--field"}
+def repo_path(arg: str) -> bool:
+    """A path inside the repo: relative, and never climbing out with `..`."""
+    path = arg.split("::", 1)[0]
+    return not path.startswith(("/", "~")) and ".." not in Path(path).parts
 
 
-def gh_api_reason(args: Command) -> str | None:
-    method: str | None = None
-    fields = False
-    positionals: list[str] = []
-    headers: list[str] = []
-    it = iter(args)
-    for a in it:
-        name, eq, attached = a.partition("=") if a.startswith("--") else (a, "", "")
-        if a == "--":
-            positionals.extend(it)
-            break
-        if not a.startswith("-") or a == "-":
-            positionals.append(a)
-        elif name in ("-X", "--method"):
-            method = (attached if eq else next(it, "")).upper()
-        elif a.startswith("-X") and len(a) > 2:
-            method = a[2:].upper()
-        elif name in GH_FIELD:
+class Flags:
+    """Walk argv against an allowlist of boolean and value-taking flags."""
+
+    def __init__(self, args: Command, booleans: set[str], values: set[str]) -> None:
+        self.args, self.booleans, self.values = args, booleans, values
+
+    def walk(self) -> list[tuple[str, str | None]]:
+        """(flag, value) pairs; positionals come back as ("", arg). Raises on unknowns."""
+        out: list[tuple[str, str | None]] = []
+        it = iter(self.args)
+        for a in it:
+            if a == "--":
+                out.extend(("", rest) for rest in it)
+                break
+            if not a.startswith("-") or a == "-":
+                out.append(("", a))
+                continue
+            name, eq, attached = a.partition("=") if a.startswith("--") else (a, "", "")
+            if name in self.values:
+                value = attached if eq else next(it, None)
+                if value is None:
+                    raise Refused(f"{name} without a value")
+                out.append((name, value))
+            elif not a.startswith("--") and a[:2] in self.values and len(a) > 2:
+                out.append((a[:2], a[2:]))  # attached short value, e.g. -tTitle
+            elif a in self.booleans:
+                out.append((a, None))
+            else:
+                raise Refused(f"the flag {a!r}, which this guard doesn't know")
+        return out
+
+
+# gh api: GET to github.com only.
+GH_API_BOOL = {"-i", "--include", "--paginate", "--silent", "--slurp", "--verbose"}
+GH_API_VALUE = {"-H", "--header", "-q", "--jq", "-t", "--template", "-p", "--preview",
+                "--cache", "-X", "--method", "-f", "--raw-field", "-F", "--field"}  # fmt: skip
+
+
+def check_gh_api(args: Command) -> None:
+    method, fields, endpoints = None, False, []
+    for flag, value in Flags(args, GH_API_BOOL, GH_API_VALUE).walk():
+        if not flag:
+            endpoints.append(value or "")
+        elif flag in ("-X", "--method"):
+            method = (value or "").upper()
+        elif flag in ("-f", "--raw-field", "-F", "--field"):
             fields = True
-            if not eq:
-                next(it, None)
-        elif len(a) > 2 and a[:2] in ("-f", "-F"):
-            fields = True
-        elif name in GH_VALUE:
-            value = attached if eq else next(it, "")
-            if name in ("-H", "--header"):
-                headers.append(value)
-        elif len(a) > 2 and a[:2] in ("-H", "-q", "-t", "-p"):
-            if a[:2] == "-H":
-                headers.append(a[2:])
-        elif a in GH_BOOL:
-            pass
-        else:
-            return f"gh api with flag {a!r}, which this guard doesn't know"
-    if len(positionals) != 1:
-        return "gh api without exactly one endpoint"
-    if positionals[0].strip("/").lower() == "graphql":
-        return "gh api graphql (GraphQL requests are POSTs)"
-    if any("method-override" in h.lower() for h in headers):
-        return "gh api with a method-override header"
+            if "=@" in (value or "") or (value or "").startswith("@"):
+                raise Refused("gh api sending a file's contents")
+        elif flag in ("-H", "--header") and "override" in (value or "").lower():
+            raise Refused("gh api with a method-override header")
+    if len(endpoints) != 1:
+        raise Refused("gh api without exactly one endpoint")
+    endpoint = endpoints[0]
+    if "://" in endpoint or endpoint.startswith("//"):
+        raise Refused("gh api to a full URL")
+    if endpoint.rstrip("/").rsplit("/", 1)[-1].lower() == "graphql":
+        raise Refused("gh api graphql (GraphQL requests are POSTs)")
     if method is not None and method != "GET":
-        return f"gh api with method {method or '(missing)'}"
+        raise Refused(f"gh api with method {method}")
     if method is None and fields:
-        return "gh api with request fields (gh sends these as a POST)"
-    return None
+        raise Refused("gh api with request fields (gh sends these as a POST)")
 
 
-# --- gh pr create ----------------------------------------------------------------
+GH_PR_BOOL = {"-d", "--draft"}
+GH_PR_VALUE = {"-B", "--base", "-H", "--head", "-t", "--title", "-b", "--body",
+               "-F", "--body-file", "-l", "--label"}  # fmt: skip
 
 
-def pr_create_reason(args: Command) -> str | None:
+def check_pr_create(args: Command) -> None:
     texts: list[str] = []
     files: list[str] = []
-    it = iter(args)
-    for a in it:
-        name, eq, attached = a.partition("=") if a.startswith("--") else (a, "", "")
-        if name in ("-R", "--repo") or a.startswith("-R"):
-            return "gh pr create for another repository"
-        if name in ("-t", "--title", "-b", "--body"):
-            texts.append(attached if eq else next(it, ""))
-        elif name in ("-F", "--body-file"):
-            files.append(attached if eq else next(it, ""))
+    for flag, value in Flags(args, GH_PR_BOOL, GH_PR_VALUE).walk():
+        if not flag:
+            raise Refused("gh pr create with an unexpected argument")
+        if flag in ("-t", "--title", "-b", "--body", "-l", "--label"):
+            texts.append(value or "")
+        elif flag in ("-F", "--body-file"):
+            files.append(value or "")
     if "-" in files:
-        return "gh pr create with the body on stdin, which can't be checked"
-    return apps_check(texts, files)
+        raise Refused("gh pr create with the body on stdin, which can't be checked")
+    apps_check(texts, files)
 
 
-def apps_check(texts: list[str], files: list[str]) -> str | None:
-    """Run the apps-only check over PR text; a reason to ask, or None if clean."""
+def apps_check(texts: list[str], files: list[str]) -> None:
+    """Run the apps-only check over PR text; refuse unless it is clean."""
     project = Path(os.environ.get("CLAUDE_PROJECT_DIR", Path(__file__).resolve().parents[2]))
     appopsy = project / ".venv" / "bin" / "appopsy"
     app_list = Path(
         os.environ.get("APPOPSY_THIRD_PARTY_LIST", Path.home() / ".config/appopsy/my-apps.txt")
     )
     if not appopsy.exists() or not app_list.is_file():
-        return "PR text can't be checked for your apps (no .venv or no app list)"
+        raise Refused("PR text can't be checked for your apps (no .venv or no app list)")
     try:
         body = "\n".join(texts + [Path(f).read_text(errors="replace") for f in files])
-    except OSError:
-        return "PR body file can't be read for the apps check"
+    except OSError as e:
+        raise Refused("PR body file can't be read for the apps check") from e
     with tempfile.TemporaryDirectory() as tmp:
         text_file = Path(tmp) / "pr-text.md"
         text_file.write_text(body)
@@ -197,186 +300,225 @@ def apps_check(texts: list[str], files: list[str]) -> str | None:
             capture_output=True, check=False, timeout=50,
         )  # fmt: skip
     if result.returncode != 0:
-        return "PR title or body names one of your apps (or the check failed)"
-    return None
+        raise Refused("PR title or body names one of your apps (or the check failed)")
 
 
-# --- git, pytest, ruff, mypy ---------------------------------------------------
+GIT_READ = {"status", "diff", "log", "show", "rev-parse", "rev-list", "ls-files",
+            "merge-base", "blame", "cat-file"}  # fmt: skip
+COMMIT_BOOL = {"--amend", "--no-edit", "--quiet", "--all", "--signoff", "--allow-empty"}
+COMMIT_VALUE = {"-m", "--message", "-F", "--file"}
 
 
-def short_flag(arg: str, letter: str) -> bool:
-    """Whether a short-option group such as `-Af` contains `letter`."""
-    return arg.startswith("-") and not arg.startswith("--") and letter in arg[1:]
+GIT_RISKY = ("--output", "--ext-diff", "--textconv")
 
 
-def git_reason(argv: Command) -> str | None:
-    args = argv[1:]
+def writes_or_runs(arg: str) -> bool:
+    """`--output=FILE`, `--ext-diff`, `--textconv`, or an abbreviation of one."""
+    name = arg.split("=", 1)[0]
+    return name.startswith(GIT_RISKY) or (
+        len(name) >= 4 and any(option.startswith(name) for option in GIT_RISKY)
+    )
+
+
+def check_git(argv: Command, *, reviewer: bool = False) -> None:
+    if len(argv) < 2 or argv[1].startswith("-"):
+        raise Refused("git with a global option (-c, -C, --config-env, …)")
+    sub, args = argv[1], argv[2:]
     if any("hookspath" in a.lower() for a in args):
-        return "git with core.hooksPath"
-    # Skip global options to find the subcommand.
-    i = 0
-    while i < len(args) and args[i].startswith("-"):
-        i += 2 if args[i] in ("-C", "-c", "--git-dir", "--work-tree", "--namespace") else 1
-    if i >= len(args):
-        return None
-    sub, rest = args[i], args[i + 1 :]
-    if sub in ("commit", "push"):
-        for a in rest:
-            if a.startswith("--no-v"):
-                return f"git {sub} skipping the hooks"
-            if sub == "commit" and a.startswith("-") and not a.startswith("--"):
-                for ch in a[1:]:
-                    if ch == "n":
-                        return "git commit -n skips the hooks"
-                    if ch in "mFCct":
-                        break  # the rest of the token is this flag's value
-    if sub in ("diff", "log", "show") and any(a.startswith("--output") for a in rest):
-        return f"git {sub} --output writes a file"
-    if sub == "add" and any(a.startswith("--f") or short_flag(a, "f") for a in rest):
-        return "git add -f stages ignored files (cases/, local settings)"
-    if sub in ("switch", "checkout") and any(
-        a.startswith(("--f", "--discard")) or short_flag(a, "f") for a in rest
-    ):
-        return f"git {sub} that can discard uncommitted work"
-    return None
+        raise Refused("git with core.hooksPath")
+    if sub in GIT_READ:
+        if any(writes_or_runs(a) for a in args):
+            raise Refused(f"git {sub} with an option that writes a file or runs a program")
+        return
+    if sub == "branch":
+        if args in ([], ["--show-current"], ["--list"]):
+            return
+        raise Refused("git branch other than --show-current/--list")
+    if reviewer:
+        raise Refused(f"git {sub} isn't read-only")
+    if sub == "commit":
+        check_commit(args)
+    elif sub == "add":
+        for a in args:
+            if (
+                a.startswith("-")
+                and a not in ("--", "--all", "--update")
+                and not re.fullmatch(r"-[Au]+", a)
+            ):
+                raise Refused(f"git add {a} (only -A/-u; -f would stage ignored files)")
+    elif sub in ("switch", "checkout"):
+        flag = "-c" if sub == "switch" else "-b"
+        if not (
+            len(args) in (2, 3) and args[0] == flag and not any(a.startswith("-") for a in args[1:])
+        ):
+            raise Refused(f"git {sub} other than `{flag} <new-branch> [<start>]`")
+    elif sub == "push" and any(a.startswith("--no-v") for a in args):
+        raise Refused("git push skipping the hooks")
 
 
-def tool_reason(argv: Command) -> str | None:
-    if is_cmd(argv, "uv", "run", "pytest"):
-        for a in argv[3:]:
-            if a.startswith(("--basetemp", "--junit", "--pastebin", "--result-log",
-                             "--override-ini", "-o")):  # fmt: skip
-                return f"pytest {a.split('=')[0]} writes, deletes or uploads"
-    if is_cmd(argv, "uv", "run", "ruff"):
-        for a in argv[3:]:
-            if a.startswith(("--output-file", "-o")):
-                return "ruff --output-file writes a file"
-    if is_cmd(argv, "uv", "run", "mypy"):
-        for a in argv[3:]:
-            if a.startswith("--") and ("report" in a or "junit" in a):
-                return f"mypy {a.split('=')[0]} writes a report"
-    return None
+def check_commit(args: Command) -> None:
+    it = iter(args)
+    for a in it:
+        if a == "--":
+            break
+        if not a.startswith("-"):
+            continue  # a pathspec
+        name, eq, _ = a.partition("=") if a.startswith("--") else (a, "", "")
+        if a in COMMIT_BOOL:
+            continue
+        if name in COMMIT_VALUE:
+            if not eq and next(it, None) is None:
+                raise Refused(f"git commit {name} without a value")
+            continue
+        if a.startswith("--"):
+            raise Refused(f"git commit {a} (hooks must run; unknown options ask)")
+        for k, ch in enumerate(a[1:]):
+            if ch in "qas":
+                continue
+            if ch in "mF":
+                if k == len(a) - 2 and next(it, None) is None:
+                    raise Refused(f"git commit -{ch} without a value")
+                break
+            raise Refused(f"git commit -{ch} (-n skips the hooks; unknown options ask)")
 
 
-def main_reason(command: str) -> str | None:
-    parsed = parse(command)
-    if parsed is None:
-        return "a command that can't be parsed" if GH_API_TEXT.search(command) else None
-    commands, _ = parsed
+PYTEST_BOOL = {"-q", "-qq", "-v", "-vv", "-x", "-s", "-l", "--lf", "--ff", "--sw",
+               "--no-header", "--co", "--collect-only", "--strict-markers"}  # fmt: skip
+PYTEST_VALUE = {"-k", "-m", "--tb", "--maxfail", "--durations", "-p"}
+RUFF_BOOL = {"--check", "--diff", "-q", "--quiet", "--fix", "--no-fix", "--statistics",
+             "--show-fixes"}  # fmt: skip
+RUFF_VALUE = {"--select", "--ignore", "--output-format"}
+
+
+def check_tool(argv: Command) -> None:
+    tool, args = argv[2], argv[3:]
+    if tool == "pytest":
+        args = [a for a in args if not re.fullmatch(r"-r[a-zA-Z]+|-[qvxsl]+", a) or a == "-p"]
+        pairs = Flags(args, PYTEST_BOOL, PYTEST_VALUE).walk()
+        if any(f == "-p" and not (v or "").startswith("no:") for f, v in pairs):
+            raise Refused("pytest -p loading a plugin (only -p no:… is routine)")
+    elif tool == "ruff":
+        if not args or args[0] not in ("check", "format"):
+            raise Refused("ruff other than check/format")
+        pairs = Flags(args[1:], RUFF_BOOL, RUFF_VALUE).walk()
+    else:  # mypy
+        pairs = Flags(args, set(), set()).walk()
+    for flag, value in pairs:
+        if not flag and not repo_path(value or ""):
+            raise Refused(f"{tool} on a path outside the repo")
+
+
+def main_check(command: str) -> None:
+    commands, _, assignments = parse(command)
     gh_api_calls = 0
-    for raw in commands:
-        argv, _ = strip_prefix(raw)
+    for argv, assigned in zip(commands, assignments, strict=True):
         if not argv:
             continue
-        reason: str | None = None
+        name = Path(argv[0]).name
+        covered = name in ("gh", "git") or is_cmd(argv, "uv", "run")
+        if covered and assigned:
+            raise Refused("an environment assignment in front of a pre-approved command")
         if is_cmd(argv, "gh", "api"):
             gh_api_calls += 1
-            reason = gh_api_reason(argv[2:])
+            check_gh_api(argv[2:])
         elif is_cmd(argv, "gh", "pr", "create"):
-            reason = pr_create_reason(argv[3:])
-        elif Path(argv[0]).name == "git":
-            reason = git_reason(argv)
-        else:
-            reason = tool_reason(argv)
-        if reason:
-            return reason
-    dequoted = command.replace('"', "").replace("'", "").replace("\\", "")
-    if len(GH_API_TEXT.findall(dequoted)) != gh_api_calls:
-        return "gh api inside quotes, a subshell or another command; can't confirm it is a GET"
-    return None
+            check_pr_create(argv[3:])
+        elif name == "git":
+            check_git(argv)
+        elif any(is_cmd(argv, "uv", "run", t) for t in ("pytest", "ruff", "mypy")):
+            check_tool(argv)
+    if len(GH_API_TEXT.findall(command.replace('"', "").replace("'", ""))) != gh_api_calls:
+        raise Refused("gh api inside quotes or another command; can't confirm it is a GET")
 
 
 # --- reviewer mode ---------------------------------------------------------------
 
-READ_ONLY_GIT = {"diff", "log", "show", "status", "ls-files", "rev-parse", "rev-list",
-                 "merge-base", "blame", "cat-file"}  # fmt: skip
-READ_ONLY_TOOLS = {"grep", "egrep", "rg", "cat", "head", "tail", "wc", "ls", "stat", "file",
-                   "echo", "printf", "pwd", "cut", "tr", "diff", "comm", "basename",
-                   "dirname", "realpath", "find", "sort", "jq", "true", "test"}  # fmt: skip
-SAFE_ASSIGNMENTS = re.compile(r"(TZ|LANG|LC_[A-Z]+)=")
+READ_ONLY_TOOLS = {"grep", "egrep", "rg", "cat", "head", "tail", "wc", "ls", "stat", "echo",
+                   "printf", "pwd", "cut", "tr", "diff", "comm", "basename", "dirname",
+                   "realpath", "find", "jq", "true", "test", "cd"}  # fmt: skip
+SAFE_ASSIGNMENT = re.compile(r"(TZ|LANG|LC_[A-Z]+)=")
 
 
-def reviewer_reason(command: str) -> str | None:
-    parsed = parse(command)
-    if parsed is None:
-        return "a command that can't be parsed"
-    commands, targets = parsed
+def reviewer_check(command: str) -> None:
+    commands, targets, assignments = parse(command)
     for t in targets:
         if t != "/dev/null" and not t.isdigit():
-            return f"redirection into {t!r}"
-    for raw in commands:
-        if any(EXPANSION.search(tok) for tok in raw):
-            return "command or variable substitution"
-        argv, assignments = strip_prefix(raw)
-        if any(not SAFE_ASSIGNMENTS.match(a) for a in assignments):
-            return "environment assignment"
+            raise Refused(f"redirection into {t!r}")
+    project = os.environ.get("CLAUDE_PROJECT_DIR", "")
+    for argv, assigned in zip(commands, assignments, strict=True):
+        if any(not SAFE_ASSIGNMENT.match(a) for a in assigned):
+            raise Refused("an environment assignment")
         if not argv:
             continue
         name = Path(argv[0]).name
         if name == "git":
-            reason = git_reason(argv)
-            if reason:
-                return reason
-            subs = [a for a in argv[1:] if not a.startswith("-")]
-            if not subs or subs[0] not in READ_ONLY_GIT or "-c" in argv[1:]:
-                return "git command that isn't read-only"
+            check_git(argv, reviewer=True)
         elif name in READ_ONLY_TOOLS:
             if name == "find" and any(
-                a in ("-delete", "-exec", "-execdir", "-ok", "-okdir")
-                or a.startswith("-fprint") or a == "-fls"
-                for a in argv
-            ):  # fmt: skip
-                return "find with an action that runs or writes"
-            if name == "sort" and any(a.startswith(("-o", "--output")) for a in argv):
-                return "sort -o writes a file"
+                a.startswith(("-delete", "-exec", "-ok", "-fprint", "-fls")) for a in argv
+            ):
+                raise Refused("find with an action that runs or writes")
             if name == "rg" and any(a.startswith("--pre") for a in argv):
-                return "rg --pre runs a command"
+                raise Refused("rg --pre runs a command")
+        elif name in ("sort", "uniq"):
+            if not all(re.fullmatch(r"-[nrufhVbcd]+", a) for a in argv[1:]):
+                raise Refused(f"{name} other than in a pipeline")
         elif is_cmd(argv, "uv", "run", "appopsy", "mask"):
             pass
         elif is_cmd(argv, "uv", "run", "appopsy", "redact-fixture"):
             if "--check" not in argv or any(
                 a.startswith(("--out", "-o", "--mapping", "--force")) for a in argv
             ):
-                return "redact-fixture other than --check"
+                raise Refused("redact-fixture other than --check")
         elif is_cmd(argv, "uv", "run", "pytest"):
-            reason = tool_reason(argv)
-            if reason:
-                return reason
+            check_tool(argv)
         elif (
             name in ("python3", "python")
             and argv[1:2] == ["-I"]
-            and argv[2:3]
-            and argv[2].endswith(".claude/hooks/command_guard.py")
+            and argv[2:3] in ([GUARD_PATH], [f"{project}/{GUARD_PATH}"])
             and argv[3:] in ([], ["--reviewer"])
         ):
             pass  # probing this guard
         else:
-            return f"{name} isn't on the reviewers' read-only list"
-    return None
+            raise Refused(f"{name} isn't on the reviewers' read-only list")
+
+
+REVIEWERS = {"privacy-reviewer", "report-reader", "allowlist-guard"}
 
 
 def main() -> int:
+    # Reviewer mode: wired in the agents' frontmatter (--reviewer), and also chosen
+    # here from `agent_type`, because the settings.json hook runs inside subagents
+    # too, while frontmatter hooks of project agents can be skipped (e.g. before
+    # the workspace is trusted).
     reviewer = "--reviewer" in sys.argv[1:]
     try:
         event = json.load(sys.stdin)
         command = event.get("tool_input", {}).get("command", "")
+        reviewer = reviewer or event.get("agent_type") in REVIEWERS
     except (ValueError, AttributeError):
         command = None
+    reason: str | None = None
     if not isinstance(command, str):
-        if not reviewer:
-            return 0  # not a Bash event we understand; normal permission rules apply
-        command = ""
-        reason: str | None = "a tool call this guard can't read"
+        if reviewer:
+            reason = "a tool call this guard can't read"
     else:
-        reason = reviewer_reason(command) if reviewer else main_reason(command)
+        try:
+            if reviewer:
+                reviewer_check(command)
+            elif COVERED_TEXT.search(command):
+                main_check(command)
+        except Refused as e:
+            reason = str(e)
     if reason:
-        decision = "deny" if reviewer else "ask"
-        prefix = "Reviewers are read-only" if reviewer else "Not a routine command"
         out = {
             "hookSpecificOutput": {
                 "hookEventName": "PreToolUse",
-                "permissionDecision": decision,
-                "permissionDecisionReason": f"{prefix}: {reason}.",
+                "permissionDecision": "deny" if reviewer else "ask",
+                "permissionDecisionReason": (
+                    f"{'Reviewers are read-only' if reviewer else 'Not a routine command'}: "
+                    f"{reason}."
+                ),
             }
         }
         print(json.dumps(out))

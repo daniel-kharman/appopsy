@@ -442,10 +442,11 @@ Tools:
   only), `/post-launch-check` (read-only `gh api` audit of repo settings).
 - `.claude/settings.json` pre-approves only routine, non-destructive commands.
   Permission rules only match prefixes, so `.claude/hooks/command_guard.py`
-  reads each command and asks first for non-routine forms: a `gh api` that
-  isn't a plain GET, PR text naming your apps, hook-skipping commits, and
-  flags that write, delete or upload. In `--reviewer` mode it holds the
-  reviewers to a read-only command list. Edits to `.claude/settings.json`,
+  reads each command and fails closed: shell expansions, unknown flags, env
+  or git global options in front of a pre-approved command all ask, as do a
+  `gh api` that isn't a plain GET, PR text naming your apps, and
+  hook-skipping commits. For the reviewer agents (by `agent_type`, or
+  `--reviewer`) it denies anything off a read-only command list. Edits to `.claude/settings.json`,
   `.claude/hooks/`, `.claude/agents/`, `.githooks/` and `.github/` always ask.
   Personal overrides go in `.claude/settings.local.json` (gitignored).
 - PRs touching `.claude/`, `.githooks/`, `.github/`, `appopsy/adb.py`, the
