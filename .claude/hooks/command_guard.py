@@ -39,10 +39,14 @@ from pathlib import Path
 
 SEPARATORS = {";", "&&", "||", "|", "|&", "&", "(", ")", ";;"}
 REDIRECT_OPS = {">", ">>", "<", ">&", "<&", "&>", "&>>", ">|", "<<<"}
-WRAPPERS = {"timeout", "time", "nice", "nohup", "stdbuf", "command", "builtin", "noglob"}
-COVERED_TEXT = re.compile(r"\b(gh|git|uv|pytest|ruff|mypy)\b")
+# Commands that run another command. Only `timeout N` is routine: the others take
+# options that write files (`time -o`), change the environment (`env`), or hide
+# the real command from prefix rules (`xargs`, `exec`, `eval`).
+WRAPPERS = {"timeout", "time", "nice", "nohup", "stdbuf", "command", "builtin", "noglob",
+            "env", "xargs", "exec", "eval", "sudo", "doas", "nocorrect"}  # fmt: skip
+COVERED_TEXT = re.compile(r"\b(gh|git|uv|pytest|ruff|mypy)\b", re.IGNORECASE)
 GH_API_TEXT = re.compile(r"\bgh\b\s+api\b")
-ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
+ASSIGNMENT = re.compile(r"[A-Za-z_][A-Za-z0-9_]*\+?=")  # X=… and X+=…
 HEREDOC = re.compile(r"<<(-?)[ \t]*(?:'([^'\n]+)'|\"([^\"\n]+)\")")
 GUARD_PATH = ".claude/hooks/command_guard.py"
 
@@ -85,7 +89,11 @@ def scan(command: str) -> str:
             out.append(command[i : j + 1])
             i, word_start = j + 1, False
             continue
-        if command.startswith("<<", i) and not command.startswith("<<<", i):
+        if command.startswith("<<<", i):  # a here-string: its word is scanned as usual
+            out.append("<<<")
+            i, word_start = i + 3, True
+            continue
+        if command.startswith("<<", i):
             m = HEREDOC.match(command, i)
             if not m:
                 raise Refused("a heredoc whose delimiter isn't quoted (its body would expand)")
@@ -109,6 +117,8 @@ def scan(command: str) -> str:
             continue
         if c in "$`":
             raise Refused("command, variable or ANSI-C expansion")
+        if c in "()":
+            raise Refused("parentheses (subshell, process substitution, zsh glob qualifier)")
         if c in "{}":
             raise Refused("brace expansion")
         if c in "*?[]":
@@ -168,10 +178,11 @@ def parse(command: str) -> tuple[list[Command], list[str], list[list[str]]]:
         while argv and ASSIGNMENT.match(argv[0]):
             assigned.append(argv[0])
             argv = argv[1:]
-        while argv and Path(argv[0]).name in WRAPPERS:
-            argv = argv[1:]
-            while argv and (argv[0].startswith("-") or argv[0][:1].isdigit()):
-                argv = argv[1:]
+        while argv and Path(argv[0]).name.lower() in WRAPPERS:
+            if argv[0] == "timeout" and len(argv) > 2 and re.fullmatch(r"\d+[smhd]?", argv[1]):
+                argv = argv[2:]
+            else:
+                raise Refused(f"the wrapper {argv[0]!r} (only `timeout N` is routine)")
         stripped.append(argv)
         assignments.append(assigned)
     return stripped, targets, assignments
@@ -181,9 +192,11 @@ def parse(command: str) -> tuple[list[Command], list[str], list[list[str]]]:
 
 
 def is_cmd(argv: Command, *words: str) -> bool:
+    """argv starts with these words; the program name is compared case-insensitively
+    (macOS file systems resolve `GIT` to git)."""
     return (
         len(argv) >= len(words)
-        and Path(argv[0]).name == words[0]
+        and Path(argv[0]).name.lower() == words[0]
         and argv[1 : len(words)] == list(words[1:])
     )
 
@@ -263,7 +276,7 @@ GH_PR_VALUE = {"-B", "--base", "-H", "--head", "-t", "--title", "-b", "--body",
                "-F", "--body-file", "-l", "--label"}  # fmt: skip
 
 
-def check_pr_create(args: Command) -> None:
+def check_pr_create(args: Command, roots: Roots) -> None:
     texts: list[str] = []
     files: list[str] = []
     for flag, value in Flags(args, GH_PR_BOOL, GH_PR_VALUE).walk():
@@ -275,7 +288,31 @@ def check_pr_create(args: Command) -> None:
             files.append(value or "")
     if "-" in files:
         raise Refused("gh pr create with the body on stdin, which can't be checked")
+    for f in files:
+        if not roots.may_publish(f):
+            raise Refused("gh pr create publishing a file from outside the repo and scratchpad")
     apps_check(texts, files)
+
+
+class Roots:
+    """Where a PR body file may come from: the session scratchpad, or the repo
+    outside its personal-data folders."""
+
+    PRIVATE = ("cases", "reports", ".venv", ".git")
+
+    def __init__(self, project: str, scratchpad: str | None, cwd: str | None) -> None:
+        self.project = Path(project).resolve() if project else None
+        self.scratchpad = Path(scratchpad).resolve() if scratchpad else None
+        self.cwd = Path(cwd) if cwd else Path.cwd()
+
+    def may_publish(self, name: str) -> bool:
+        path = (self.cwd / Path(name).expanduser()).resolve()
+        if self.scratchpad and path.is_relative_to(self.scratchpad):
+            return True
+        if self.project and path.is_relative_to(self.project):
+            first = path.relative_to(self.project).parts[:1]
+            return bool(first) and first[0] not in self.PRIVATE
+        return False
 
 
 def apps_check(texts: list[str], files: list[str]) -> None:
@@ -408,32 +445,48 @@ def check_tool(argv: Command) -> None:
             raise Refused(f"{tool} on a path outside the repo")
 
 
-def main_check(command: str) -> None:
-    commands, _, assignments = parse(command)
+def dequote(command: str) -> str:
+    return command.replace('"', "").replace("'", "").replace("\\", "")
+
+
+def main_check(command: str, roots: Roots) -> None:
+    try:
+        commands, targets, assignments = parse(command)
+    except Refused:
+        # Only commands settings.json pre-approves need the guard; anything else
+        # gets the normal prompt. Quotes can split a word (`gi""t`), so look at
+        # the text without them.
+        if COVERED_TEXT.search(dequote(command)):
+            raise
+        return
     gh_api_calls = 0
+    any_covered = False
     for argv, assigned in zip(commands, assignments, strict=True):
         if not argv:
             continue
-        name = Path(argv[0]).name
+        name = Path(argv[0]).name.lower()
         covered = name in ("gh", "git") or is_cmd(argv, "uv", "run")
+        any_covered = any_covered or covered
         if covered and assigned:
             raise Refused("an environment assignment in front of a pre-approved command")
         if is_cmd(argv, "gh", "api"):
             gh_api_calls += 1
             check_gh_api(argv[2:])
         elif is_cmd(argv, "gh", "pr", "create"):
-            check_pr_create(argv[3:])
+            check_pr_create(argv[3:], roots)
         elif name == "git":
             check_git(argv)
         elif any(is_cmd(argv, "uv", "run", t) for t in ("pytest", "ruff", "mypy")):
             check_tool(argv)
-    if len(GH_API_TEXT.findall(command.replace('"', "").replace("'", ""))) != gh_api_calls:
+    if any_covered and any(t != "/dev/null" and not t.isdigit() for t in targets):
+        raise Refused("a pre-approved command redirected into a file")
+    if len(GH_API_TEXT.findall(dequote(command))) != gh_api_calls:
         raise Refused("gh api inside quotes or another command; can't confirm it is a GET")
 
 
 # --- reviewer mode ---------------------------------------------------------------
 
-READ_ONLY_TOOLS = {"grep", "egrep", "rg", "cat", "head", "tail", "wc", "ls", "stat", "echo",
+READ_ONLY_TOOLS = {"grep", "egrep", "cat", "head", "tail", "wc", "ls", "stat", "echo",
                    "printf", "pwd", "cut", "tr", "diff", "comm", "basename", "dirname",
                    "realpath", "find", "jq", "true", "test", "cd"}  # fmt: skip
 SAFE_ASSIGNMENT = re.compile(r"(TZ|LANG|LC_[A-Z]+)=")
@@ -450,7 +503,7 @@ def reviewer_check(command: str) -> None:
             raise Refused("an environment assignment")
         if not argv:
             continue
-        name = Path(argv[0]).name
+        name = argv[0]  # exact: no paths, so `X+=/cat` or `./cat` can't pass as cat
         if name == "git":
             check_git(argv, reviewer=True)
         elif name in READ_ONLY_TOOLS:
@@ -458,8 +511,6 @@ def reviewer_check(command: str) -> None:
                 a.startswith(("-delete", "-exec", "-ok", "-fprint", "-fls")) for a in argv
             ):
                 raise Refused("find with an action that runs or writes")
-            if name == "rg" and any(a.startswith("--pre") for a in argv):
-                raise Refused("rg --pre runs a command")
         elif name in ("sort", "uniq"):
             if not all(re.fullmatch(r"-[nrufhVbcd]+", a) for a in argv[1:]):
                 raise Refused(f"{name} other than in a pipeline")
@@ -492,11 +543,14 @@ def main() -> int:
     # too, while frontmatter hooks of project agents can be skipped (e.g. before
     # the workspace is trusted).
     reviewer = "--reviewer" in sys.argv[1:]
+    project = os.environ.get("CLAUDE_PROJECT_DIR", "")
+    roots = Roots(project, None, None)
     try:
         event = json.load(sys.stdin)
         command = event.get("tool_input", {}).get("command", "")
         reviewer = reviewer or event.get("agent_type") in REVIEWERS
-    except (ValueError, AttributeError):
+        roots = Roots(project, event.get("scratchpad_dir"), event.get("cwd"))
+    except (ValueError, AttributeError, TypeError):
         command = None
     reason: str | None = None
     if not isinstance(command, str):
@@ -506,8 +560,8 @@ def main() -> int:
         try:
             if reviewer:
                 reviewer_check(command)
-            elif COVERED_TEXT.search(command):
-                main_check(command)
+            else:
+                main_check(command, roots)
         except Refused as e:
             reason = str(e)
     if reason:
