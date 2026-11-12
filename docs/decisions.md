@@ -187,9 +187,10 @@ programs), in an OS-level sandbox (Seatbelt on macOS):
   what runs, outside the sandbox: `.venv/`, `.githooks/`, `appopsy/`,
   `scripts/`; git's `config`, `config.worktree`, `commondir` (which can point
   git at another config), `worktrees/` and `hooks/`; and every root-level
-  `*.py`, `*.pth`, `*.ini`, `*.cfg`, `*.toml`, `.python-version`, and
+  `*.py`, `*.pth`, `*.ini`, `*.cfg`, `*.toml`, `.python-version`,
+  `*.dist-info`/`*.egg-info` (entry points, e.g. pydantic plugins), and
   `sitecustomize`/`usercustomize` packages (the editable install puts the repo
-  root on the venv's import path). Claude Code also protects
+  root on the venv's import path); and `.git/modules`, `.gitmodules`. Claude Code also protects
   `.claude/settings.json`, `.claude/hooks/`, `.claude/skills/` and
   `.claude/agents/`, and renaming a protected folder is blocked too (tested).
   The rule: **nothing outside the sandbox runs code that sandboxed code could
@@ -249,9 +250,23 @@ covers code nobody typed: tests, dependencies, git config programs.
 - **A new top-level package folder** (other than `sitecustomize` and
   `usercustomize`) can still be created from the sandbox. Through the editable
   install it would be importable by an unsandboxed appopsy run (the pre-push
-  hook, the guard's apps check) if appopsy or a dependency imported a module of
-  that name that isn't installed. No such import is known; the full fix is a
-  `src/` layout, so the venv no longer puts the repo root on the import path.
+  hook, the guard's apps check) if something imported it by name: an optional
+  import of a module that isn't installed, or an entry point. Entry points need
+  a `*.dist-info`, which is write-denied, and pydantic plugins are switched off
+  (`PYDANTIC_DISABLE_PLUGINS=__all__` in the settings, the hook and the guard);
+  a planted plugin was shown to load before that. The full fix is a `src/`
+  layout (planned next), so the venv no longer puts the repo root on the import
+  path.
+- **Nested repositories.** The sandbox can't write a nested `.git/config` or
+  `.git/hooks` (Claude Code protects them), but a `.git` *file* can point git at
+  a writable folder with its own config. So the push and gh commands run only
+  from the repo root, and push and `gh pr create` (which run `git status`) are
+  refused while a gitlink is staged. `diff.ignoreSubmodules=all` (a one-time
+  setup step) keeps any other `git status` outside the sandbox, Claude Code's
+  own included, from running a submodule's config (tested: with it, a planted
+  `core.fsmonitor` doesn't run).
+- **The pre-push hook's scratch space** is under `~/.cache`, which the sandbox
+  can't write, not `$TMPDIR`, which it can.
 - **Commands the maintainer runs in their own terminal** run outside the
   sandbox, including working-tree code the sandbox can write: a commit made
   there runs the pre-commit hook, so pytest loads `tests/conftest.py`. Claude's

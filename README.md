@@ -134,6 +134,7 @@ contributions are welcome.
 ```bash
 uv sync                                  # create .venv with the dev tools
 git config core.hooksPath .githooks      # install the git hooks (once per clone)
+git config diff.ignoreSubmodules all     # git status never runs a submodule's config
 ```
 
 The hooks are checked into `.githooks/`:

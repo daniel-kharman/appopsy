@@ -77,7 +77,8 @@
   },
   "env": {
     "UV_CACHE_DIR": ".uv-cache",
-    "UV_OFFLINE": "1"
+    "UV_OFFLINE": "1",
+    "PYDANTIC_DISABLE_PLUGINS": "__all__"
   },
   "sandbox": {
     "enabled": true,
@@ -121,6 +122,10 @@
         "./pyproject.toml",
         "./uv.lock",
         "./*.py",
+        "./*.dist-info",
+        "./*.egg-info",
+        "./.git/modules",
+        "./.gitmodules",
         "./sitecustomize",
         "./usercustomize",
         "./*.pth",

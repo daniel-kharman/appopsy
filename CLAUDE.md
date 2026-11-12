@@ -409,7 +409,9 @@ fixture too, so the redactor knows every app even if the input lacks a `pm list`
   the sandbox, and a branch's settings can switch the sandbox off. Read the diff
   on GitHub first; don't `gh pr checkout` it here.
 - The git hooks in `.githooks/` enforce the commit discipline (install:
-  `git config core.hooksPath .githooks`). pre-commit checks the staged tree with
+  `git config core.hooksPath .githooks`, plus `git config diff.ignoreSubmodules
+  all`, so a `git status` outside the sandbox, e.g. Claude Code's own, never runs
+  the config of a submodule the sandbox planted). pre-commit checks the staged tree with
   ruff, mypy and pytest; pre-push runs both third-party checks on every commit
   being pushed and fails closed without the app list. Never bypass them with
   `--no-verify`; if a hook is wrong, fix the hook.
@@ -464,6 +466,12 @@ Tools:
   convenience layer: it keeps routine commands routine and fixes real bugs, but
   it isn't hardened further unless a reviewer shows a way to publish private
   data or run untrusted code outside the sandbox.
+- **Never put tokens in the environment for this repo** (`GH_TOKEN`,
+  `GITHUB_TOKEN`, PyPI or any other credential): sandboxed commands inherit the
+  environment, and file denials don't cover it. gh uses the keychain, which the
+  sandbox can't read. If a token is ever needed in the environment, it gets
+  masked from sandboxed commands first (`sandbox.credentials.envVars` in
+  `.claude/settings.json`, a change the maintainer approves).
 - `.claude/settings.json` pre-approves only routine, non-destructive commands,
   including `git push -u origin <branch>` for a feature branch (never `main`;
   every other push form asks).
