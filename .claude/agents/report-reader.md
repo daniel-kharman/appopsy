@@ -5,6 +5,15 @@ tools: Read, Grep, Glob
 disallowedTools: Bash, Edit, Write, NotebookEdit, WebFetch, WebSearch, Agent
 model: sonnet
 effort: low
+hooks:
+  PreToolUse:
+    - matcher: Read|Grep|Glob
+      hooks:
+        - type: command
+          timeout: 90
+          command: >-
+            python3 -I "$CLAUDE_PROJECT_DIR/.claude/hooks/command_guard.py" --reviewer
+            || echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"The command guard did not run."}}'
 ---
 
 You are a careful, non-technical person reading an appopsy report about your

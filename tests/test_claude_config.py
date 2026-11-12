@@ -3,11 +3,16 @@ permissions in settings.json, and the read-only reviewer agents."""
 
 from __future__ import annotations
 
+import importlib.util
+import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
+import time
+import types
 from pathlib import Path
 
 import pytest
@@ -30,9 +35,20 @@ def run_hook(
     agent_type: str | None = None,
     scratchpad: Path | None = None,
     cwd: Path | None = None,
+    tool: str = "Bash",
+    tool_input: dict[str, object] | None = None,
 ) -> str | None:
-    """The hook's permission decision for a Bash command (None: no objection)."""
-    event: dict[str, object] = {"tool_name": "Bash", "tool_input": {"command": command}}
+    """The hook's permission decision for a tool call (None: no objection).
+
+    Reviewer checks resolve paths against the project (the venv's repo), so they
+    run from there: the pre-commit hook runs tests in an exported copy elsewhere.
+    """
+    event: dict[str, object] = {
+        "tool_name": tool,
+        "tool_input": tool_input if tool_input is not None else {"command": command},
+    }
+    if cwd is None and (reviewer or agent_type):
+        cwd = VENV.parent
     if agent_type:
         event["agent_type"] = agent_type
     if scratchpad:
@@ -64,6 +80,7 @@ ROUTINE = [
     "gh api --paginate repos/o/r/pulls/1/files -q '.[].filename'",
     "gh api -H 'Accept: application/vnd.github.raw' repos/o/r/contents/x",
     "gh pr view 12",
+    "gh pr view 9 --json state,mergeable -q .state",
     "uv run pytest -q",
     "uv run pytest -q tests/test_x.py -p no:cacheprovider",
     "uv run ruff check .",
@@ -168,6 +185,12 @@ NOT_ROUTINE = [
     "git switch -c x --dis",
     'git commit -m "$(cat msg.txt)"',
     "git commit -n -F - <<EOF\nunquoted heredoc expands $x\nEOF",
+    # A message file is published with the commit (sixth review)
+    "git commit -F cases/x/raw/getprop.txt",
+    "git commit --file=CASES/x/raw/getprop.txt",
+    "git commit -qFcases/x/raw/getprop.txt",
+    "git commit -F /etc/hosts",
+    "git commit -F docs/../cases/x",
     "git commit -n -F - <<'EOF'\nsay \"hi\nEOF",
     "git commit -m 'x' \\\n -n",
     "git log -- *.py",
@@ -198,6 +221,37 @@ NOT_ROUTINE = [
     "uv run pytest ../other/tests",
     "uv run ruff check --fix /path/outside",
     "uv run ruff clean",
+    # Any git or gh subcommand the guard doesn't handle asks
+    "git fetch -q origin",
+    "git stash",
+    "git reset --hard origin/main",
+    "git restore .",
+    "git clean -fd",
+    "git config user.name x",
+    "git remote add x https://example.invalid/r.git",
+    "git tag v9",
+    "git merge x",
+    "git rebase main",
+    "git checkout main",
+    "git worktree add ../x",
+    "gh repo view",
+    "gh pr list",
+    "gh pr merge 9",
+    "gh pr edit 9 --add-label x",
+    "gh pr comment 9 -b x",
+    "gh pr checkout 9",
+    "gh issue list",
+    "gh run list",
+    "gh auth status",
+    "gh release list",
+    "gh label list",
+    "gh extension install x",
+    "gh",
+    # `uv run git …` is still git (fourth review)
+    "uv run git push --force origin main",
+    "uv run gh api -X DELETE repos/o/r",
+    "uv run -- git commit -n -m x",
+    "uv run --with x pytest",
     # Push: only `-u origin <feature-branch>` is routine
     "git push -u origin main",
     "git push -u origin MAIN",
@@ -254,11 +308,21 @@ def test_anything_else_asks(command: str) -> None:
     assert run_hook(command) == "ask"
 
 
-def test_garbage_input_is_ignored_in_the_main_session() -> None:
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "not json",
+        "[]",
+        json.dumps({"tool_name": "Bash", "tool_input": "git status"}),
+        json.dumps({"tool_name": "Bash", "tool_input": {"command": 7}}),
+        json.dumps({"tool_name": "Bash", "tool_input": {}}),
+    ],
+)
+def test_unreadable_events_ask_in_the_main_session(raw: str) -> None:
     out = subprocess.run(
-        [sys.executable, "-I", str(HOOK)], input="not json", capture_output=True, text=True
+        [sys.executable, "-I", str(HOOK)], input=raw, capture_output=True, text=True, check=True
     )
-    assert out.returncode == 0 and out.stdout == ""
+    assert json.loads(out.stdout)["hookSpecificOutput"]["permissionDecision"] == "ask"
 
 
 @pytest.mark.skipif(not HAS_APPOPSY, reason="needs the project's virtualenv")
@@ -303,6 +367,46 @@ def test_pr_body_files_only_from_the_repo_or_scratchpad(tmp_path: Path) -> None:
     # Outside both roots, or in the repo's personal-data folders: ask.
     assert run_hook(ok, env=env, scratchpad=tmp_path / "other") == "ask"
     assert run_hook("gh pr create -t a -F cases/x/raw/getprop.txt", env=env) == "ask"
+    # Any letter case, any depth, *.case, tool folders, `..` (fifth review)
+    for body_file in (
+        "CASES/x/raw/getprop.txt",
+        "Cases/x/raw/getprop.txt",
+        "Reports/r.md",
+        "tests/cases/x.txt",
+        "docs/x.case/raw.txt",
+        ".GIT/config",
+        ".venv/pyvenv.cfg",
+        "docs/../cases/x",
+        "README.md/..",
+    ):
+        command = f"gh pr create -t a -F {body_file}"
+        assert run_hook(command, env=env, cwd=VENV.parent) == "ask", body_file
+    # In the scratchpad, only Markdown directly in it: raw captures live in subfolders
+    # (sixth review).
+    raw = pad / "cases" / "x" / "raw"
+    raw.mkdir(parents=True)
+    (raw / "getprop.txt").write_text("[ro.serialno]: [SERIAL]\n")
+    (pad / "notes.txt").write_text("x\n")
+    (pad / "sub").mkdir()
+    (pad / "sub" / "body.md").write_text("x\n")
+    for body_file in (raw / "getprop.txt", pad / "notes.txt", pad / "sub" / "body.md"):
+        command = f"gh pr create -t a -F {body_file}"
+        assert run_hook(command, env=env, scratchpad=pad) == "ask", body_file
+    # A top-level .md that is a symlink into a raw capture is refused too.
+    (pad / "link.md").symlink_to(raw / "getprop.txt")
+    assert run_hook(f"gh pr create -t a -F {pad / 'link.md'}", env=env, scratchpad=pad) == "ask"
+    # Commit message files follow the same rules; stdin and a repo file stay routine.
+    assert run_hook(f"git commit -F {pad / 'link.md'}", scratchpad=pad) == "ask"
+    assert run_hook(f"git commit -F {raw / 'getprop.txt'}", scratchpad=pad) == "ask"
+    assert run_hook(f"git commit -F {pad / 'body.md'}", scratchpad=pad) is None
+    for routine in ("git commit -qF-", "git commit -F -", "git commit -F docs/decisions.md"):
+        assert run_hook(routine, cwd=VENV.parent) is None, routine
+    # A scratchpad outside a temp directory is ignored, so "/" can't open everything.
+    assert run_hook("gh pr create -t a -F /etc/shells", env=env, scratchpad=Path("/")) == "ask"
+    # Only regular files: a FIFO would hang the read.
+    fifo = pad / "body.fifo"
+    os.mkfifo(fifo)
+    assert run_hook(f"gh pr create -t a -F {fifo}", env=env, scratchpad=pad) == "ask"
 
 
 def test_pr_text_that_cant_be_checked_asks(tmp_path: Path) -> None:
@@ -314,12 +418,21 @@ REVIEWER_OK = [
     "git diff origin/main...HEAD -- .claude",
     "git log --format=%B origin/main..HEAD | uv run appopsy mask",
     "git show HEAD:CLAUDE.md | head -50",
-    "grep -rn 'foo$' docs",
+    "git log --oneline -20 | tail -n 5",
+    "git diff --stat | wc -l",
+    "git log --format=%an | sort | uniq -c",
+    "git status --short",
+    "git ls-files tests | wc -l",
+    "git branch --show-current",
     "uv run appopsy redact-fixture --check --third-party-list ~/.config/appopsy/my-apps.txt tests/fixtures 2>&1 | uv run appopsy mask",
+    "uv run appopsy redact-fixture --check --apps-only --third-party-list ~/.config/appopsy/my-apps.txt .",
+    "uv run appopsy mask tests/fixtures/17-google/capture-5/getprop.txt",
     "uv run pytest -q tests/test_adb_allowlist.py",
-    """echo '{"tool_input":{"command":"gh api -X POST x"}}' | python3 -I .claude/hooks/command_guard.py""",
-    "find tests -name '*.py' | wc -l",
-    "ls -la .claude 2>/dev/null",
+    "git log | head -n 5",
+    "git log | head -5",
+    "git log | tail -n5",
+    "git diff 2>&1 | head",
+    "git grep -n foo -- docs",
 ]
 
 REVIEWER_DENIED = [
@@ -365,6 +478,99 @@ REVIEWER_DENIED = [
     "uv run pytest --debug=/tmp/x",
     "python3 -I /tmp/x/.claude/hooks/command_guard.py",
     "uname -a",
+    # No file-reading tools in reviewers' Bash: grep, cat and ls may be ugrep, bat
+    # or eza, whose flags run programs, write files or list cases/ (fourth review)
+    "grep foo README.md",
+    "grep -d recurse x .",
+    "grep --filter='*:sh' x README.md",
+    "grep --save-config=.githooks/pre-push",
+    "cat README.md",
+    "cat --pager=sh README.md",
+    "ls",
+    "ls -T .",
+    "find tests",
+    "find -f .. -name x",
+    "diff -rN . tests",
+    "head -5 README.md",
+    "head -c 5 README.md",
+    "wc -l README.md",
+    "sort -o out.txt",
+    "sort -ofile",
+    "sort --compress-program=sh",
+    "cd docs",
+    "cd; cat .config/appopsy/my-apps.txt",
+    "stat README.md",
+    # Fifth review: digit redirect targets are files; filter operands; the probe
+    "echo x > 1",
+    "git show HEAD:CLAUDE.md >> 2",
+    "uniq 1 2",
+    "head 1",
+    "head -n",
+    "head -n x",
+    "wc -l5",
+    """echo '{"tool_input":{"command":"gh api -X POST x"}}' | python3 -I .claude/hooks/command_guard.py""",
+    # git grep: tracked files only, no pager program, no pattern files
+    "git grep -O sh foo",
+    "git grep -Osh foo",
+    "git grep --open-files-in-pager=sh x",
+    "git grep --untracked x",
+    "git grep --unt x",
+    "git grep -f cases/x y",
+    "git grep --file=cases/x y",
+    "git grep --no-index x /etc",
+    # git reading outside the repo or listing ignored files (fourth review)
+    "git diff /dev/null ~/.config/appopsy/my-apps.txt",
+    "git diff --stat /etc/shells /etc/hosts",
+    "git diff HEAD -- ../outside",
+    "git blame --contents x README.md",
+    "git blame README.md",
+    "git cat-file -p HEAD",
+    "git ls-files --oth",
+    "git ls-files --other",
+    "git ls-files -co",
+    "git diff --no-ind a b",
+    "git status --ign",
+    # The app list: only redact-fixture --check --third-party-list may read it
+    "cat ~/.config/appopsy/my-apps.txt",
+    "head -5 ~/.config/appopsy/my-apps.txt",
+    "tail ~/.config/appopsy/my-apps.txt",
+    "grep foo ~/.config/appopsy/my-apps.txt",
+    "grep -f ~/.config/appopsy/my-apps.txt docs",
+    "grep -rf ~/.config/appopsy/my-apps.txt docs",
+    "grep --file=~/.config/appopsy/my-apps.txt docs",
+    "wc -l ~/.config/appopsy/my-apps.txt",
+    "diff README.md ~/.config/appopsy/my-apps.txt",
+    "find . -newer ~/.config/appopsy/my-apps.txt",
+    "uv run appopsy mask ~/.config/appopsy/my-apps.txt",
+    "uv run appopsy mask --third-party-list ~/.config/appopsy/my-apps.txt docs/x.md",
+    "uv run appopsy redact-fixture --check --third-party-list /etc/hosts tests/fixtures",
+    "uv run appopsy redact-fixture --check --third-party-list /net/example.invalid/x tests/fixtures",
+    "uv run appopsy redact-fixture --check --third-party-list ~/.config/appopsy/x/../my-apps.txt tests/fixtures",
+    "uv run appopsy redact-fixture --check --packages ~/.config/appopsy/my-apps.txt tests/fixtures",
+    # Outside the repo, or in cases/ or reports/
+    "cat /etc/hosts",
+    "cat ../outside.txt",
+    "cd .. && cat x",
+    "cd docs && cat ../cases/x/raw/getprop.txt",
+    "cat cases/x/raw/getprop.txt",
+    "ls cases",
+    "ls reports/",
+    "find cases -name x",
+    "wc --files0-from=/etc/hosts",
+    "uv run appopsy redact-fixture --check --third-party-list ~/.config/appopsy/my-apps.txt cases",
+    "uv run pytest cases/x",
+    # Recursive reads from the repo root would walk into cases/ and reports/
+    "grep -rn foo .",
+    "grep -r foo",
+    "find . -name '*.txt'",
+    "find -name x",
+    "ls -R",
+    "ls -la -R .",
+    # git listing ignored files or reading outside git
+    "git status --ignored",
+    "git ls-files -o",
+    "git ls-files --others",
+    "git diff --no-index /etc/hosts README.md",
     # Third review
     "X+=/cat echo ran",
     "./cat README.md",
@@ -386,6 +592,69 @@ def test_reviewer_read_only_commands_pass(command: str) -> None:
 @pytest.mark.parametrize("command", REVIEWER_DENIED)
 def test_reviewer_everything_else_is_denied(command: str) -> None:
     assert run_hook(command, reviewer=True) == "deny"
+
+
+APP_LIST = str(Path("~/.config/appopsy/my-apps.txt").expanduser())
+
+
+@pytest.mark.parametrize(
+    ("tool", "tool_input"),
+    [
+        ("Read", {"file_path": APP_LIST}),
+        ("Read", {"file_path": str(VENV.parent / "cases" / "x" / "raw" / "getprop.txt")}),
+        ("Read", {"file_path": str(VENV.parent / "reports" / "r.md")}),
+        ("Read", {"file_path": "/etc/hosts"}),
+        ("Grep", {"pattern": "x", "path": str(Path(APP_LIST).parent)}),
+        ("Grep", {"pattern": "x", "path": str(VENV.parent / "cases")}),
+        ("Grep", {"pattern": "x"}),  # the repo root: would reach cases/
+        ("Grep", {"pattern": "x", "path": str(VENV.parent)}),
+        ("Glob", {"pattern": "cases/**"}),
+        ("Glob", {"pattern": "**/*.txt"}),  # from the root
+        ("Glob", {"pattern": "../*"}),
+        ("Glob", {"pattern": "*", "path": str(Path(APP_LIST).parent)}),
+        ("Read", {}),
+        # Case-insensitive file systems (fourth review)
+        ("Read", {"file_path": str(VENV.parent / "CASES" / "x" / "raw" / "getprop.txt")}),
+        ("Read", {"file_path": str(VENV.parent / "Reports" / "r.md")}),
+        ("Grep", {"pattern": "x", "path": str(VENV.parent / "Cases")}),
+        ("Glob", {"pattern": "Cases/**", "path": str(VENV.parent)}),
+        # Nested private folders, *.case, `..`, lookups outside the repo (fifth review)
+        ("Read", {"file_path": str(VENV.parent / "tests" / "cases" / "x")}),
+        ("Read", {"file_path": str(VENV.parent / "docs" / "x.case" / "y")}),
+        ("Read", {"file_path": str(VENV.parent / "docs" / ".." / "README.md")}),
+        ("Read", {"file_path": "/net/example.invalid/../Users/x"}),
+        # Escapes and extglob in patterns at the root (fifth review)
+        ("Glob", {"pattern": "\\cases/*", "path": str(VENV.parent)}),
+        ("Glob", {"pattern": "@(cases)/*", "path": str(VENV.parent)}),
+        ("Glob", {"pattern": "!(docs)/*", "path": str(VENV.parent)}),
+        ("Glob", {"pattern": "+(c)ases/*", "path": str(VENV.parent)}),
+        ("Glob", {"pattern": "c?ses/*", "path": str(VENV.parent)}),
+        # Brace patterns (fourth review)
+        ("Glob", {"pattern": "{..}/{cases}/**", "path": str(VENV.parent / "docs")}),
+        ("Grep", {"pattern": "x", "path": str(VENV.parent / "docs"), "glob": "{a,b}"}),
+    ],
+)
+def test_reviewer_file_tools_stay_in_the_repo(tool: str, tool_input: dict[str, object]) -> None:
+    assert run_hook("", tool=tool, tool_input=tool_input, reviewer=True) == "deny"
+    assert run_hook("", tool=tool, tool_input=tool_input, agent_type="privacy-reviewer") == "deny"
+
+
+@pytest.mark.parametrize(
+    ("tool", "tool_input"),
+    [
+        ("Read", {"file_path": str(VENV.parent / "README.md")}),
+        ("Read", {"file_path": str(VENV.parent / "tests" / "fixtures" / "17-google" / "x.txt")}),
+        ("Grep", {"pattern": "x", "path": str(VENV.parent / "appopsy")}),
+        ("Glob", {"pattern": "**/*.py", "path": str(VENV.parent / "tests")}),
+        ("Glob", {"pattern": "docs/*.md"}),
+    ],
+)
+def test_reviewer_file_tools_in_the_repo_pass(tool: str, tool_input: dict[str, object]) -> None:
+    assert run_hook("", tool=tool, tool_input=tool_input, reviewer=True) is None
+
+
+def test_main_session_file_tools_are_not_checked() -> None:
+    assert run_hook("", tool="Read", tool_input={"file_path": APP_LIST}) is None
 
 
 @pytest.mark.parametrize("agent", ["privacy-reviewer", "allowlist-guard", "report-reader"])
@@ -519,7 +788,7 @@ def test_settings_wire_the_hook_and_keep_permissions_narrow() -> None:
     settings = json.loads((CLAUDE / "settings.json").read_text())
     hooks = settings["hooks"]["PreToolUse"]
     assert any(
-        h["matcher"] == "Bash" and "command_guard.py" in x["command"]
+        h["matcher"] == "Bash|Read|Grep|Glob" and "command_guard.py" in x["command"]
         for h in hooks
         for x in h["hooks"]
     )
@@ -566,8 +835,211 @@ def test_reviewer_agents_are_read_only(name: str) -> None:
     denied = next(line for line in front.splitlines() if line.startswith("disallowedTools:"))
     for tool in ("Edit", "Write", "NotebookEdit", "WebFetch", "WebSearch"):
         assert tool in denied, tool
-    if "Bash" in tools:
-        # Bash inherits the project's allow rules, so the reviewer hook must hold it
-        # to the read-only list.
-        assert "matcher: Bash" in front
-        assert 'command_guard.py" --reviewer' in front
+    # Every reviewer has the reviewer hook, with a deny fallback, on its file tools
+    # and (where it has Bash) on Bash, which otherwise inherits the allow rules.
+    assert 'command_guard.py" --reviewer' in front
+    assert "|| echo" in front and '"permissionDecision":"deny"' in front
+    matcher = next(line for line in front.splitlines() if "matcher:" in line)
+    assert set(matcher.split(":", 1)[1].strip().split("|")) == tools
+
+
+def test_settings_git_and_gh_rules_name_specific_subcommands() -> None:
+    """The guard asks for unhandled subcommands anyway; settings.json mustn't rely on
+    that either: no `git *` or `gh *`, every rule names its subcommand."""
+    allow = json.loads((CLAUDE / "settings.json").read_text())["permissions"]["allow"]
+    for rule in allow:
+        inner = rule.removeprefix("Bash(").removesuffix(")")
+        words = inner.split()
+        if words[0] not in ("git", "gh"):
+            continue
+        assert len(words) >= 2 and re.fullmatch(r"[a-z][a-z-]*", words[1]), rule
+        if words[0] == "gh" and words[1] == "pr":
+            assert re.fullmatch(r"[a-z]+", words[2]), rule
+
+
+# --- Fails closed ------------------------------------------------------------------
+
+
+def load_guard() -> types.ModuleType:
+    spec = importlib.util.spec_from_file_location("command_guard_under_test", HOOK)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def run_main(
+    guard: types.ModuleType,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    event: dict[str, object],
+    argv: list[str] | None = None,
+) -> str | None:
+    monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(event)))
+    monkeypatch.setattr(sys, "argv", ["command_guard.py", *(argv or [])])
+    assert guard.main() == 0  # never a non-zero exit
+    out = capsys.readouterr().out
+    if not out.strip():
+        return None
+    decision: str = json.loads(out)["hookSpecificOutput"]["permissionDecision"]
+    return decision
+
+
+def boom(*args: object, **kwargs: object) -> None:
+    raise RuntimeError("unexpected")
+
+
+BASH = {"tool_name": "Bash", "tool_input": {"command": "git status"}}
+
+
+def test_a_crash_asks_in_the_main_session(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    guard = load_guard()
+    monkeypatch.setattr(guard, "main_check", boom)
+    assert run_main(guard, monkeypatch, capsys, BASH) == "ask"
+
+
+@pytest.mark.parametrize("how", ["flag", "agent_type"])
+def test_a_crash_denies_for_a_reviewer(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], how: str
+) -> None:
+    guard = load_guard()
+    monkeypatch.setattr(guard, "reviewer_check", boom)
+    event = {**BASH, "agent_type": "privacy-reviewer"} if how == "agent_type" else BASH
+    argv = ["--reviewer"] if how == "flag" else []
+    assert run_main(guard, monkeypatch, capsys, event, argv) == "deny"
+
+
+def test_a_crash_while_reading_the_event_still_answers(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    class BrokenStdin:
+        def read(self) -> str:
+            raise OSError("stdin went away")
+
+    guard = load_guard()
+    for argv, expected in (([], "ask"), (["--reviewer"], "deny")):
+        monkeypatch.setattr(sys, "stdin", BrokenStdin())
+        monkeypatch.setattr(sys, "argv", ["command_guard.py", *argv])
+        assert guard.main() == 0
+        out = json.loads(capsys.readouterr().out)
+        assert out["hookSpecificOutput"]["permissionDecision"] == expected
+
+
+@pytest.mark.skipif(not HAS_APPOPSY, reason="needs the project's virtualenv")
+def test_an_apps_check_timeout_asks(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], tmp_path: Path
+) -> None:
+    app_list = tmp_path / "my-apps.txt"
+    app_list.write_text("package:org.example.privateapp\n")
+    monkeypatch.setenv("APPOPSY_THIRD_PARTY_LIST", str(app_list))
+    monkeypatch.setenv("CLAUDE_PROJECT_DIR", str(VENV.parent))
+    guard = load_guard()
+
+    def timeout(*args: object, **kwargs: object) -> None:
+        raise subprocess.TimeoutExpired(cmd="appopsy", timeout=50)
+
+    monkeypatch.setattr(guard.subprocess, "run", timeout)
+    with pytest.raises(guard.Refused, match="timed out"):
+        guard.apps_check(["Title"], [])
+    event = {"tool_name": "Bash", "tool_input": {"command": "gh pr create -t Title -b Body"}}
+    assert run_main(guard, monkeypatch, capsys, event) == "ask"
+
+
+@pytest.mark.skipif(shutil.which("sh") is None, reason="needs sh")
+def test_settings_hook_asks_when_the_guard_cannot_start(tmp_path: Path) -> None:
+    """A guard that can't even start (a syntax error, a missing file) must still
+    answer: the hook command falls back to "ask"."""
+    settings = json.loads((CLAUDE / "settings.json").read_text())
+    command = settings["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
+    hooks = tmp_path / ".claude" / "hooks"
+    hooks.mkdir(parents=True)
+    sh = shutil.which("sh")
+    assert sh is not None
+    for broken in ("def broken(:\n", None):  # a syntax error, then no file at all
+        guard = hooks / "command_guard.py"
+        if broken is None:
+            guard.unlink()
+        else:
+            guard.write_text(broken)
+        out = subprocess.run(
+            [sh, "-c", command],
+            input=json.dumps(BASH),
+            capture_output=True,
+            text=True,
+            check=True,
+            env={**os.environ, "CLAUDE_PROJECT_DIR": str(tmp_path)},
+        ).stdout
+        decision = json.loads(out.strip().splitlines()[-1])["hookSpecificOutput"]
+        assert decision["permissionDecision"] == "ask"
+
+
+def frontmatter_hook_command(name: str) -> str:
+    """The reviewer hook command from an agent's frontmatter (a YAML folded block)."""
+    lines = frontmatter(name).splitlines()
+    start = next(i for i, line in enumerate(lines) if line.strip() == "command: >-")
+    folded = []
+    for line in lines[start + 1 :]:
+        if not line.startswith(" " * 12):
+            break
+        folded.append(line.strip())
+    return " ".join(folded)
+
+
+@pytest.mark.skipif(shutil.which("sh") is None, reason="needs sh")
+@pytest.mark.parametrize("name", ["privacy-reviewer", "report-reader", "allowlist-guard"])
+def test_reviewer_hook_denies_when_the_guard_cannot_start(name: str, tmp_path: Path) -> None:
+    command = frontmatter_hook_command(name)
+    hooks = tmp_path / ".claude" / "hooks"
+    hooks.mkdir(parents=True)
+    (hooks / "command_guard.py").write_text("def broken(:\n")
+    sh = shutil.which("sh")
+    assert sh is not None
+    out = subprocess.run(
+        [sh, "-c", command],
+        input=json.dumps(BASH),
+        capture_output=True,
+        text=True,
+        check=True,
+        env={**os.environ, "CLAUDE_PROJECT_DIR": str(tmp_path)},
+    ).stdout
+    decision = json.loads(out.strip().splitlines()[-1])["hookSpecificOutput"]
+    assert decision["permissionDecision"] == "deny"
+
+
+def test_hooks_have_a_timeout_above_the_guards_budget() -> None:
+    guard = load_guard()
+    settings = json.loads((CLAUDE / "settings.json").read_text())
+    for entry in settings["hooks"]["PreToolUse"]:
+        for hook in entry["hooks"]:
+            assert hook["timeout"] > guard.BUDGET_SECONDS + 10
+    for name in ("privacy-reviewer", "report-reader", "allowlist-guard"):
+        assert "timeout: 90" in frontmatter(name)
+
+
+def test_a_spent_time_budget_refuses(monkeypatch: pytest.MonkeyPatch) -> None:
+    guard = load_guard()
+    monkeypatch.setattr(guard, "DEADLINE", 0.0)
+    with pytest.raises(guard.Refused, match="out of time"):
+        guard.budget(10)
+
+
+def test_a_hung_decision_still_answers_by_the_deadline(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A lookup that never returns (an automount, a FIFO) must not outlive the hook:
+    the main thread answers at the deadline and exits."""
+    guard = load_guard()
+    exits: list[int] = []
+    monkeypatch.setattr(guard, "BUDGET_SECONDS", 0.2)
+    monkeypatch.setattr(guard, "GRACE_SECONDS", 0.0)
+    monkeypatch.setattr(guard, "_exit", exits.append)
+    monkeypatch.setattr(guard, "decide", lambda mode: time.sleep(30))
+    for argv, expected in (([], "ask"), (["--reviewer"], "deny")):
+        monkeypatch.setattr(sys, "stdin", io.StringIO(json.dumps(BASH)))
+        monkeypatch.setattr(sys, "argv", ["command_guard.py", *argv])
+        assert guard.main() == 0
+        out = json.loads(capsys.readouterr().out)
+        assert out["hookSpecificOutput"]["permissionDecision"] == expected
+    assert exits == [0, 0]
