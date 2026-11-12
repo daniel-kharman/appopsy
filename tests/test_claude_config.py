@@ -1043,3 +1043,54 @@ def test_a_hung_decision_still_answers_by_the_deadline(
         out = json.loads(capsys.readouterr().out)
         assert out["hookSpecificOutput"]["permissionDecision"] == expected
     assert exits == [0, 0]
+
+
+# --- The sandbox: the security boundary (docs/decisions.md entry 12) ---------------
+
+
+def test_sandbox_is_on_strict_and_offline() -> None:
+    settings = json.loads((CLAUDE / "settings.json").read_text())
+    sandbox = settings["sandbox"]
+    assert sandbox["enabled"] is True
+    assert sandbox["failIfUnavailable"] is True
+    assert sandbox["allowUnsandboxedCommands"] is False  # no unsandboxed retries
+    assert sandbox["autoAllowBashIfSandboxed"] is False  # permissions still decide
+    network = sandbox["network"]
+    assert network["deniedDomains"] == ["*"]  # holds in every permission mode
+    assert network.get("allowedDomains", []) == []
+    for key in ("allowUnixSockets", "allowAllUnixSockets", "allowLocalBinding",
+                "allowMachLookup", "httpProxyPort", "socksProxyPort"):  # fmt: skip
+        assert key not in network, key
+    filesystem = sandbox["filesystem"]
+    for path in ("~/.ssh", "~/.aws", "~/.config/gh", "~/Library/Keychains", "./cases",
+                 "./reports"):  # fmt: skip
+        assert path in filesystem["denyRead"], path
+    for key in ("allowRead", "allowWrite", "disabled"):
+        assert key not in filesystem, key
+    for key in ("allowAppleEvents", "enableWeakerNetworkIsolation"):
+        assert key not in sandbox, key
+
+
+def test_sandbox_exclusions_are_the_narrow_commands_that_need_github_or_the_phone() -> None:
+    settings = json.loads((CLAUDE / "settings.json").read_text())
+    assert settings["sandbox"]["excludedCommands"] == [
+        "git push -u origin *",
+        "gh pr create *",
+        "gh pr view *",
+        "gh api *",
+        "uv run appopsy devices",
+        "uv run appopsy audit *",
+    ]
+    # Every git/gh exclusion is also a pre-approved, guarded command, so it can't
+    # run anything the guard hasn't seen.
+    allow = settings["permissions"]["allow"]
+    for excluded in settings["sandbox"]["excludedCommands"]:
+        if excluded.startswith(("git ", "gh ")):
+            assert f"Bash({excluded})" in allow, excluded
+
+
+def test_uv_cache_stays_in_the_repo() -> None:
+    settings = json.loads((CLAUDE / "settings.json").read_text())
+    assert settings["env"]["UV_CACHE_DIR"] == ".uv-cache"
+    assert settings["env"]["UV_OFFLINE"] == "1"
+    assert ".uv-cache/" in (ROOT / ".gitignore").read_text().splitlines()

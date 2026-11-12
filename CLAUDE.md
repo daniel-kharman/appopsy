@@ -402,10 +402,12 @@ fixture too, so the redactor knows every app even if the input lacks a `pm list`
   `TZ=UTC` (e.g. `TZ=UTC git commit …`). This is optional, and existing history
   is never rewritten for it.
 - **External contributors' PR branches are only ever checked out, tested or
-  run inside the sandbox (or a devcontainer), never in a normal session.**
-  `uv run`, pytest and the pre-commit hook execute the branch's code with your
-  user's access to the phone, `~/.config/appopsy/` and the network. Read the
-  diff on GitHub first; don't `gh pr checkout` it here.
+  run in a devcontainer (or another throwaway machine), never in this
+  checkout, not even with the Claude Code sandbox on.** `uv run`, pytest and the
+  git hooks execute the branch's code, and the branch brings its own
+  `.claude/settings.json` and `.claude/hooks/`: Claude Code runs hooks outside
+  the sandbox, and a branch's settings can switch the sandbox off. Read the diff
+  on GitHub first; don't `gh pr checkout` it here.
 - The git hooks in `.githooks/` enforce the commit discipline (install:
   `git config core.hooksPath .githooks`). pre-commit checks the staged tree with
   ruff, mypy and pytest; pre-push runs both third-party checks on every commit
@@ -433,7 +435,7 @@ opening PRs (`/ship`).
 - merging any PR;
 - anything that changes repo visibility or settings, publishes, or posts
   publicly (releases, issues, comments, labels, rulesets);
-- changes to the permissions in `.claude/settings.json`.
+- changes to the permissions or the sandbox in `.claude/settings.json`.
 
 **How to work:**
 - Don't stop mid-task for questions you can park: finish what you can, then
@@ -448,6 +450,17 @@ Tools:
   `.githooks/` or `.github/` change).
 - Skills: `/ship` (checks, reviewers, PR), `/capture-fixture` (maintainer
   only), `/post-launch-check` (read-only `gh api` audit of repo settings).
+- **The security boundary is the Claude Code sandbox** (`sandbox` in
+  `.claude/settings.json`; see `docs/decisions.md` entry 12). Bash commands and
+  everything they start run in it: no network at all, no writes outside the
+  repo and temp, no reads of credentials, `cases/` or `reports/`. Only
+  `git push -u origin <branch>`, `gh pr create|view`, `gh api`, `uv run appopsy
+  devices` and `uv run appopsy audit` run outside it, and only when issued as a
+  single command (no pipes or `&&`). Dependency changes need `uv sync` outside
+  the sandbox: ask the maintainer to run it. The command guard below is a
+  convenience layer: it keeps routine commands routine and fixes real bugs, but
+  it isn't hardened further unless a reviewer shows a way to publish private
+  data or run untrusted code outside the sandbox.
 - `.claude/settings.json` pre-approves only routine, non-destructive commands,
   including `git push -u origin <branch>` for a feature branch (never `main`;
   every other push form asks).

@@ -77,7 +77,9 @@ changed files, and for report-reader the report file(s) to read (default
 git push -u origin <branch>
 ```
 
-Use exactly this form: it is the only push the command guard lets through
+Run it as a single command (no `cd …&&`, no pipe): only then does it run
+outside the sandbox, which it needs to reach GitHub. The same goes for
+`gh pr create` below. Use exactly this form: it is the only push the command guard lets through
 without asking (a feature branch, never `main`, no other flags). The pre-push hook runs both third-party checks on every commit; if it refuses,
 fix the cause (never `--no-verify`). Then create the PR with
 `gh pr create --base main --title "<title>" --body-file <scratchpad>/pr-body.md`,

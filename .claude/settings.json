@@ -75,6 +75,43 @@
       "Bash(gh release delete *)"
     ]
   },
+  "env": {
+    "UV_CACHE_DIR": ".uv-cache",
+    "UV_OFFLINE": "1"
+  },
+  "sandbox": {
+    "enabled": true,
+    "failIfUnavailable": true,
+    "allowUnsandboxedCommands": false,
+    "autoAllowBashIfSandboxed": false,
+    "excludedCommands": [
+      "git push -u origin *",
+      "gh pr create *",
+      "gh pr view *",
+      "gh api *",
+      "uv run appopsy devices",
+      "uv run appopsy audit *"
+    ],
+    "network": {
+      "allowedDomains": [],
+      "deniedDomains": ["*"]
+    },
+    "filesystem": {
+      "denyRead": [
+        "~/.ssh",
+        "~/.aws",
+        "~/.gnupg",
+        "~/.netrc",
+        "~/.git-credentials",
+        "~/.config/gh",
+        "~/.docker",
+        "~/.kube",
+        "~/Library/Keychains",
+        "./cases",
+        "./reports"
+      ]
+    }
+  },
   "hooks": {
     "PreToolUse": [
       {
