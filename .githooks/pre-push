@@ -133,8 +133,18 @@ while read -r local_ref local_sha remote_ref remote_sha; do
         # Wikidata (every row there, at least 95% of a fresh generation), or the
         # push is refused, offline included.
         names_file="src/appopsy/report/app_names.tsv"
-        if git diff-tree --root --no-commit-id --name-only -r "$c" | grep -qxF "$names_file" \
-            && [ -f "$dir/$names_file" ]; then
+        # "Changes it" means new content, not a new path: a pure rename keeps the blob,
+        # which was already verified at this path or scanned whole by the apps check
+        # anywhere else. So verify unless the parent commit holds the identical blob.
+        names_new=no
+        if [ -f "$dir/$names_file" ]; then
+            blob=$(git rev-parse "$c:$names_file")
+            if ! git rev-parse -q --verify "$c^" >/dev/null \
+                || ! git ls-tree -r "$c^" | awk '{print $3}' | grep -qxF "$blob"; then
+                names_new=yes
+            fi
+        fi
+        if [ "$names_new" = yes ]; then
             code=0
             # The working tree's script, never the pushed commit's: a commit can be
             # written from inside the Claude Code sandbox, and this hook runs outside it.
