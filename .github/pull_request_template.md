@@ -8,6 +8,6 @@
 ## Checklist
 
 - [ ] One change, with tests (a parser change has a fixture test).
-- [ ] The git hooks ran (`git config core.hooksPath .githooks`), and the privacy checks passed.
+- [ ] The git hooks ran (set up as in the README's Development section: `core.hooksPath`, `diff.ignoreSubmodules`, `push.useBitmaps`), and the privacy checks passed.
 - [ ] No real third-party app names outside the fixture allowlist; examples use `com.example.*`.
 - [ ] No new adb command (or the maintainer agreed to it first).

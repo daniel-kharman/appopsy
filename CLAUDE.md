@@ -402,7 +402,7 @@ fixture too, so the redactor knows every app even if the input lacks a `pm list`
   `TZ=UTC` (e.g. `TZ=UTC git commit …`). This is optional, and existing history
   is never rewritten for it.
 - **External contributors' PR branches are only ever checked out, tested or
-  run in a devcontainer (or another throwaway machine), never in this
+  run on a disposable VM or a separate machine (the repo has no devcontainer), never in this
   checkout, not even with the Claude Code sandbox on.** `uv run`, pytest and the
   git hooks execute the branch's code, and the branch brings its own
   `.claude/settings.json` and `.claude/hooks/`: Claude Code runs hooks outside

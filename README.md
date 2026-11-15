@@ -147,9 +147,30 @@ The hooks are checked into `.githooks/`:
   installed-app list. The list is personal and lives outside the repository, at
   `~/.config/appopsy/my-apps.txt`; without it the push is refused. See
   `CLAUDE.md` ("Your own app list") for how to create it.
+  It asks the remote which commits it already has (`git ls-remote`), so a push
+  needs the remote to be reachable: if it can't be asked, or doesn't answer
+  within 60 s, the push is refused. It also refuses a shallow clone (clone the
+  full history) and a repo without the `push.useBitmaps false` setting above.
+  A commit that changes the Wikidata names file is verified against Wikidata,
+  which needs the network too.
 
 `git commit --no-verify` / `git push --no-verify` skip them; don't, unless you know
 why a check is wrong and fix the check.
+
+### Working on appopsy with Claude Code
+
+The repository's `.claude/settings.json` applies to anyone who opens it in Claude
+Code. Shell commands run in Claude Code's sandbox, with no network and no writes
+outside the repository (and none to the code, the hooks or the virtualenv). So:
+
+- Run `uv sync`, `git fetch`/`git pull`, and `appopsy devices`/`audit` (the
+  phone) in your own terminal.
+- Claude can still commit, push a feature branch (`git push -u origin
+  <branch>`) and open a pull request, as single commands.
+- On native Windows, Claude Code has no sandbox, so it won't start in this
+  repository; use WSL2, macOS or Linux.
+
+The reasons are in [docs/decisions.md](docs/decisions.md) (entries 11 and 12).
 
 Two developer commands are left out of `appopsy --help` because they're only for
 building test fixtures: `appopsy redact-fixture` (redact a capture before it's
