@@ -9,8 +9,8 @@ set -eu
 # on files the sandbox can write. The editable install puts the repo root on the
 # import path, so no pydantic plugins from planted *.dist-info; and git shows the
 # real objects and parents, not replacements or grafts a sandboxed process could add
-# (refs/replace, .git/info/grafts).
-export PYDANTIC_DISABLE_PLUGINS=__all__ GIT_NO_REPLACE_OBJECTS=1 GIT_GRAFT_FILE=/dev/null
+# (refs/replace here; .git/info/grafts once the scratch folder exists, below).
+export PYDANTIC_DISABLE_PLUGINS=__all__ GIT_NO_REPLACE_OBJECTS=1
 repo=$(git rev-parse --show-toplevel)
 appopsy="$repo/.venv/bin/appopsy"
 list="${APPOPSY_THIRD_PARTY_LIST:-$HOME/.config/appopsy/my-apps.txt}"
@@ -39,6 +39,9 @@ base="$HOME/.cache/appopsy"
 mkdir -p "$base"
 tmp=$(mktemp -d "$base/pre-push.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT INT TERM
+# Grafts off: point git at a grafts file that doesn't exist, in a folder the sandbox
+# can't write. (/dev/null also works but makes git print a deprecation hint.)
+export GIT_GRAFT_FILE="$tmp/no-grafts"
 # Your non-allowlisted app names, for checking commit messages.
 "$repo/.venv/bin/python" -I - "$list" >"$tmp/names" <<'PY'
 import sys
@@ -81,7 +84,7 @@ known=$(cut -f1 "$tmp/remote-refs" | sort -u | while read -r sha; do
 done)
 # The walk below must see the real history. Grafts, a commit-graph and a shallow
 # file are all writable from the sandbox and can rewrite a commit's parents, so the
-# hook ignores grafts (GIT_GRAFT_FILE above), the walk ignores the commit-graph, and
+# hook ignores grafts (GIT_GRAFT_FILE, set above), the walk ignores the commit-graph, and
 # a shallow clone is refused. And git push must walk the same
 # history: with reachability bitmaps (on by default) it would send commits this walk
 # was fooled into skipping. push.useBitmaps lives in .git/config, which the sandbox
