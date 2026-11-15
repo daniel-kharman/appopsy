@@ -161,7 +161,9 @@ why a check is wrong and fix the check.
 
 The repository's `.claude/settings.json` applies to anyone who opens it in Claude
 Code. Shell commands run in Claude Code's sandbox, with no network and no writes
-outside the repository (and none to the code, the hooks or the virtualenv). So:
+outside the repository and temp folders. Inside the repository they can't write
+`src/`, `scripts/`, the git hooks, the virtualenv or root-level config files
+(Claude edits those directly, with your approval). So:
 
 - Run `uv sync`, `git fetch`/`git pull`, and `appopsy devices`/`audit` (the
   phone) in your own terminal.
