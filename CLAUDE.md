@@ -408,6 +408,12 @@ fixture too, so the redactor knows every app even if the input lacks a `pm list`
   `.claude/settings.json` and `.claude/hooks/`: Claude Code runs hooks outside
   the sandbox, and a branch's settings can switch the sandbox off. Read the diff
   on GitHub first; don't `gh pr checkout` it here.
+- **Security probes run only in throwaway repos under a temp folder**
+  (`$TMPDIR`), never in this checkout. Every git command in a probe names its
+  repo (`git -C <temp repo> …`), and the probe aborts first if
+  `git -C <temp repo> rev-parse --show-toplevel` resolves to this repo. (A probe
+  once committed to the working branch: its nested `git init` failed, and git
+  fell back to the parent repo.)
 - The git hooks in `.githooks/` enforce the commit discipline (install:
   `git config core.hooksPath .githooks`, plus `git config diff.ignoreSubmodules
   all`, so a `git status` outside the sandbox, e.g. Claude Code's own, never runs

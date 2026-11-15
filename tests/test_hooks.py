@@ -52,17 +52,28 @@ def repo(tmp_path: Path) -> Path:
     (r / "README.md").write_text("clean\n")
     git(r, "add", "-A")
     git(r, "commit", "-q", "-m", "clean start")
+    # A real (empty) remote: the hook asks it which commits it already has.
+    origin = tmp_path / "origin.git"
+    git(tmp_path, "init", "-q", "--bare", str(origin))
+    git(r, "remote", "add", "origin", str(origin))
     return r
 
 
-def push_hook(repo: Path, home: Path, app_list: Path | None) -> subprocess.CompletedProcess[str]:
+def push_hook(
+    repo: Path, home: Path, app_list: Path | None, extra_env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
     head = git(repo, "rev-parse", "HEAD")
-    env = {**os.environ, "HOME": str(home)}
+    env = {**os.environ, "HOME": str(home), **(extra_env or {})}
     env.pop("APPOPSY_THIRD_PARTY_LIST", None)
     if app_list is not None:
         env["APPOPSY_THIRD_PARTY_LIST"] = str(app_list)
+    assert GIT is not None
+    found = subprocess.run(
+        [GIT, "remote", "get-url", "origin"], cwd=repo, capture_output=True, text=True
+    )
+    url = found.stdout.strip() or "url"
     return subprocess.run(
-        [str(HOOKS / "pre-push"), "origin", "url"],
+        [str(HOOKS / "pre-push"), "origin", url],
         cwd=repo, input=f"refs/heads/main {head} refs/heads/main {ZERO}\n",
         env=env, capture_output=True, text=True,
     )  # fmt: skip
@@ -103,6 +114,60 @@ def test_pre_push_checks_commit_messages(repo: Path, app_list: Path) -> None:
     result = push_hook(repo, app_list.parent, app_list)
     assert result.returncode == 1
     assert "named in the commit message" in result.stderr
+
+
+def test_pre_push_ignores_forged_remote_tracking_refs(repo: Path, app_list: Path) -> None:
+    """A sandboxed process can write refs/remotes/*. A forged origin/main pointing at
+    the new commit must not make the hook treat it as already pushed: the hook asks
+    the remote (here an empty one) what it has."""
+    (repo / "notes.md").write_text("we saw com.example.bank\n")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "add notes")
+    git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")  # forged
+    result = push_hook(repo, app_list.parent, app_list)
+    assert result.returncode == 1, result.stderr
+    assert "one of your apps is named in the tree" in result.stderr
+
+
+def test_pre_push_skips_only_what_the_remote_really_has(repo: Path, app_list: Path) -> None:
+    """Commits the remote already has are public, so they aren't checked again; new
+    commits on top still are."""
+    (repo / "x.txt").write_text("x\n")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "already public: com.example.bank")
+    git(repo, "push", "-q", "--no-verify", "origin", "main")  # the remote has it now
+    (repo / "y.txt").write_text("y\n")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "new and clean")
+    result = push_hook(repo, app_list.parent, app_list)
+    assert result.returncode == 0, result.stderr
+    (repo / "z.txt").write_text("z\n")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "new: com.example.bank")
+    result = push_hook(repo, app_list.parent, app_list)
+    assert result.returncode == 1
+    assert "named in the commit message" in result.stderr
+
+
+def test_pre_push_refuses_when_the_remote_cant_be_asked(
+    repo: Path, app_list: Path, tmp_path: Path
+) -> None:
+    git(repo, "remote", "set-url", "origin", str(tmp_path / "no-such-remote.git"))
+    result = push_hook(repo, app_list.parent, app_list)
+    assert result.returncode == 1
+    assert "couldn't ask 'origin' which commits it already has" in result.stderr
+    assert "passed for every commit" not in result.stderr
+
+
+def test_pre_push_refuses_when_asking_the_remote_times_out(repo: Path, app_list: Path) -> None:
+    # git runs this instead of git-upload-pack for the local remote: it never answers
+    # in time.
+    git(repo, "config", "remote.origin.uploadpack", "sleep 5; false")
+    result = push_hook(
+        repo, app_list.parent, app_list, extra_env={"APPOPSY_LS_REMOTE_TIMEOUT": "1"}
+    )
+    assert result.returncode == 1
+    assert "timed out" in result.stderr
 
 
 def test_pre_push_fails_closed_without_the_list(repo: Path, tmp_path: Path) -> None:

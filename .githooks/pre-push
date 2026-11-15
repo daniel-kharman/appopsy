@@ -46,6 +46,35 @@ from appopsy.redact_packages import DEFAULT_ALLOWLIST, load_third_party_list
 allowed = {a.name for a in DEFAULT_ALLOWLIST}
 print("\n".join(sorted(load_third_party_list(Path(sys.argv[1])) - allowed)))
 PY
+# Which commits are new is decided by asking the remote what it has, never by local
+# remote-tracking refs: a sandboxed process can write refs/remotes/* and make a new
+# branch's commits look already pushed. No answer (an error or a timeout) means no
+# push. $1 is the remote git is pushing to.
+ls_remote_timeout="${APPOPSY_LS_REMOTE_TIMEOUT:-60}"
+if ! "$repo/.venv/bin/python" -I - "$1" "$ls_remote_timeout" >"$tmp/remote-refs" 2>"$tmp/ls-remote.err" <<'PY'
+import subprocess
+import sys
+
+try:
+    r = subprocess.run(
+        ["git", "ls-remote", sys.argv[1]],
+        capture_output=True, text=True, timeout=float(sys.argv[2]),
+    )
+except subprocess.TimeoutExpired:
+    sys.exit(f"git ls-remote timed out after {sys.argv[2]} s")
+sys.stdout.write(r.stdout)
+sys.stderr.write(r.stderr)
+sys.exit(r.returncode)
+PY
+then
+    echo "pre-push: couldn't ask '$1' which commits it already has (git ls-remote failed or timed out), so nothing was pushed:" >&2
+    sed 's/^/    /' "$tmp/ls-remote.err" >&2
+    exit 1
+fi
+# The remote's commits that exist here; anything reachable from them is already public.
+known=$(cut -f1 "$tmp/remote-refs" | sort -u | while read -r sha; do
+    git cat-file -e "$sha^{commit}" 2>/dev/null && echo "$sha"
+done)
 status=0
 check_result() {  # $1 exit code, $2 output, $3 check name, $4 message for a finding
     if [ "$1" -eq 0 ]; then
@@ -60,11 +89,9 @@ check_result() {  # $1 exit code, $2 output, $3 check name, $4 message for a fin
 }
 while read -r local_ref local_sha remote_ref remote_sha; do
     [ "$local_sha" = "$zero" ] && continue  # deleting a ref: nothing to check
-    if [ "$remote_sha" = "$zero" ]; then
-        commits=$(git rev-list "$local_sha" --not --remotes)
-    else
-        commits=$(git rev-list "$remote_sha..$local_sha")
-    fi
+    # $known is a list of commit IDs, split into words on purpose.
+    # shellcheck disable=SC2086
+    commits=$(git rev-list "$local_sha" --not $known)
     for c in $commits; do
         dir="$tmp/$c"
         mkdir "$dir"  # fails (and stops the push) if something is already there

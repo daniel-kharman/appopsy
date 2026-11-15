@@ -267,6 +267,10 @@ covers code nobody typed: tests, dependencies, git config programs.
   `core.fsmonitor` doesn't run).
 - **The pre-push hook's scratch space** is under `~/.cache`, which the sandbox
   can't write, not `$TMPDIR`, which it can.
+- **Which commits the pre-push hook checks** is decided by asking the remote
+  (`git ls-remote`), never by local remote-tracking refs, which the sandbox can
+  forge to make new commits look already pushed. If the remote can't be asked
+  (an error, or no answer within 60 s), the push is refused.
 - **Commands the maintainer runs in their own terminal** run outside the
   sandbox, including working-tree code the sandbox can write: a commit made
   there runs the pre-commit hook, so pytest loads `tests/conftest.py`. Claude's
