@@ -270,7 +270,13 @@ covers code nobody typed: tests, dependencies, git config programs.
 - **Which commits the pre-push hook checks** is decided by asking the remote
   (`git ls-remote`), never by local remote-tracking refs, which the sandbox can
   forge to make new commits look already pushed. If the remote can't be asked
-  (an error, or no answer within 60 s), the push is refused.
+  (an error, or no answer within 60 s), the push is refused. The hook's walk
+  ignores grafts and the commit-graph and refuses a shallow clone (all
+  sandbox-writable, all able to rewrite parents), and it requires
+  `push.useBitmaps=false`: with bitmaps, git push sent a commit that a
+  grafted walk had hidden (tested). Without them, a forged object fools the
+  push the same way it fools the walk, and the remote rejects the incomplete
+  pack.
 - **Commands the maintainer runs in their own terminal** run outside the
   sandbox, including working-tree code the sandbox can write: a commit made
   there runs the pre-commit hook, so pytest loads `tests/conftest.py`. Claude's

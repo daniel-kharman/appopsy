@@ -8,8 +8,9 @@ set -eu
 # This hook runs outside the Claude Code sandbox (an excluded push, or a terminal),
 # on files the sandbox can write. The editable install puts the repo root on the
 # import path, so no pydantic plugins from planted *.dist-info; and git shows the
-# real objects, not replacements a sandboxed process could add under refs/replace.
-export PYDANTIC_DISABLE_PLUGINS=__all__ GIT_NO_REPLACE_OBJECTS=1
+# real objects and parents, not replacements or grafts a sandboxed process could add
+# (refs/replace, .git/info/grafts).
+export PYDANTIC_DISABLE_PLUGINS=__all__ GIT_NO_REPLACE_OBJECTS=1 GIT_GRAFT_FILE=/dev/null
 repo=$(git rev-parse --show-toplevel)
 appopsy="$repo/.venv/bin/appopsy"
 list="${APPOPSY_THIRD_PARTY_LIST:-$HOME/.config/appopsy/my-apps.txt}"
@@ -50,8 +51,10 @@ PY
 # remote-tracking refs: a sandboxed process can write refs/remotes/* and make a new
 # branch's commits look already pushed. No answer (an error or a timeout) means no
 # push. $1 is the remote git is pushing to.
+# Asked at $2, the URL git is actually pushing to (a pushurl may differ from the
+# fetch URL that the remote's name, $1, resolves to).
 ls_remote_timeout="${APPOPSY_LS_REMOTE_TIMEOUT:-60}"
-if ! "$repo/.venv/bin/python" -I - "$1" "$ls_remote_timeout" >"$tmp/remote-refs" 2>"$tmp/ls-remote.err" <<'PY'
+if ! "$repo/.venv/bin/python" -I - "$2" "$ls_remote_timeout" >"$tmp/remote-refs" 2>"$tmp/ls-remote.err" <<'PY'
 import subprocess
 import sys
 
@@ -71,10 +74,26 @@ then
     sed 's/^/    /' "$tmp/ls-remote.err" >&2
     exit 1
 fi
-# The remote's commits that exist here; anything reachable from them is already public.
+# The remote's commits that exist here (GitHub also lists pull-request refs whose
+# commits usually aren't local; those are simply left out).
 known=$(cut -f1 "$tmp/remote-refs" | sort -u | while read -r sha; do
-    git cat-file -e "$sha^{commit}" 2>/dev/null && echo "$sha"
+    if git cat-file -e "$sha^{commit}" 2>/dev/null; then echo "$sha"; fi
 done)
+# The walk below must see the real history. Grafts, a commit-graph and a shallow
+# file are all writable from the sandbox and can rewrite a commit's parents, so the
+# hook ignores grafts (GIT_GRAFT_FILE above), the walk ignores the commit-graph, and
+# a shallow clone is refused. And git push must walk the same
+# history: with reachability bitmaps (on by default) it would send commits this walk
+# was fooled into skipping. push.useBitmaps lives in .git/config, which the sandbox
+# can't write.
+if [ -e "$(git rev-parse --git-path shallow)" ]; then
+    echo "pre-push: this clone is shallow; the history can't be checked, so nothing was pushed." >&2
+    exit 1
+fi
+if [ "$(git config --get push.useBitmaps || true)" != "false" ]; then
+    echo "pre-push: set 'git config push.useBitmaps false' first (see CLAUDE.md), so git push sends exactly the commits this hook checks. Nothing was pushed." >&2
+    exit 1
+fi
 status=0
 check_result() {  # $1 exit code, $2 output, $3 check name, $4 message for a finding
     if [ "$1" -eq 0 ]; then
@@ -91,7 +110,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
     [ "$local_sha" = "$zero" ] && continue  # deleting a ref: nothing to check
     # $known is a list of commit IDs, split into words on purpose.
     # shellcheck disable=SC2086
-    commits=$(git rev-list "$local_sha" --not $known)
+    commits=$(git -c core.commitGraph=false rev-list "$local_sha" --not $known)
     for c in $commits; do
         dir="$tmp/$c"
         mkdir "$dir"  # fails (and stops the push) if something is already there

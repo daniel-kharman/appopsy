@@ -56,11 +56,16 @@ def repo(tmp_path: Path) -> Path:
     origin = tmp_path / "origin.git"
     git(tmp_path, "init", "-q", "--bare", str(origin))
     git(r, "remote", "add", "origin", str(origin))
+    git(r, "config", "push.useBitmaps", "false")  # setup step (CLAUDE.md)
     return r
 
 
 def push_hook(
-    repo: Path, home: Path, app_list: Path | None, extra_env: dict[str, str] | None = None
+    repo: Path,
+    home: Path,
+    app_list: Path | None,
+    extra_env: dict[str, str] | None = None,
+    url: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     head = git(repo, "rev-parse", "HEAD")
     env = {**os.environ, "HOME": str(home), **(extra_env or {})}
@@ -71,7 +76,7 @@ def push_hook(
     found = subprocess.run(
         [GIT, "remote", "get-url", "origin"], cwd=repo, capture_output=True, text=True
     )
-    url = found.stdout.strip() or "url"
+    url = url or found.stdout.strip() or "url"
     return subprocess.run(
         [str(HOOKS / "pre-push"), "origin", url],
         cwd=repo, input=f"refs/heads/main {head} refs/heads/main {ZERO}\n",
@@ -163,11 +168,59 @@ def test_pre_push_refuses_when_asking_the_remote_times_out(repo: Path, app_list:
     # git runs this instead of git-upload-pack for the local remote: it never answers
     # in time.
     git(repo, "config", "remote.origin.uploadpack", "sleep 5; false")
-    result = push_hook(
-        repo, app_list.parent, app_list, extra_env={"APPOPSY_LS_REMOTE_TIMEOUT": "1"}
-    )
+    result = push_hook(  # by name, so git applies the remote's uploadpack setting
+        repo, app_list.parent, app_list, extra_env={"APPOPSY_LS_REMOTE_TIMEOUT": "1"},
+        url="origin",
+    )  # fmt: skip
     assert result.returncode == 1
     assert "timed out" in result.stderr
+
+
+def test_pre_push_tolerates_remote_commits_it_doesnt_have(
+    repo: Path, app_list: Path, tmp_path: Path
+) -> None:
+    """GitHub lists pull-request refs whose commits aren't local: they're left out of
+    the known set, not a reason to stop (silently) under set -e."""
+    other = tmp_path / "other-clone"
+    git(tmp_path, "clone", "-q", git(repo, "remote", "get-url", "origin"), str(other))
+    (other / "theirs.txt").write_text("x\n")
+    git(other, "add", "-A")
+    git(other, "commit", "-q", "-m", "someone else's commit")
+    git(other, "push", "-q", "--no-verify", "origin", "HEAD:refs/pull/1/head")
+    result = push_hook(repo, app_list.parent, app_list)
+    assert result.returncode == 0, result.stderr
+    assert "passed for every commit" in result.stderr
+
+
+def test_pre_push_ignores_grafts(repo: Path, app_list: Path) -> None:
+    """A planted graft can make the remote's commit look like a descendant of the new
+    one, so a grafted walk finds nothing new; the hook walks the real parents."""
+    git(repo, "push", "-q", "--no-verify", "origin", "main")
+    pushed = git(repo, "rev-parse", "HEAD")
+    (repo / "notes.md").write_text("we saw com.example.bank\n")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "add notes")
+    new = git(repo, "rev-parse", "HEAD")
+    (repo / ".git" / "info").mkdir(exist_ok=True)
+    (repo / ".git" / "info" / "grafts").write_text(f"{pushed} {new}\n")
+    result = push_hook(repo, app_list.parent, app_list)
+    assert result.returncode == 1, result.stderr
+    assert "one of your apps is named in the tree" in result.stderr
+
+
+def test_pre_push_refuses_a_shallow_clone(repo: Path, app_list: Path) -> None:
+    (repo / ".git" / "shallow").write_text(git(repo, "rev-parse", "HEAD") + "\n")
+    result = push_hook(repo, app_list.parent, app_list)
+    assert result.returncode == 1
+    assert "shallow" in result.stderr
+
+
+def test_pre_push_requires_push_bitmaps_off(repo: Path, app_list: Path) -> None:
+    """With bitmaps, git push can send commits the hook's walk didn't see."""
+    git(repo, "config", "--unset", "push.useBitmaps")
+    result = push_hook(repo, app_list.parent, app_list)
+    assert result.returncode == 1
+    assert "push.useBitmaps false" in result.stderr
 
 
 def test_pre_push_fails_closed_without_the_list(repo: Path, tmp_path: Path) -> None:

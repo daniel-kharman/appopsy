@@ -417,7 +417,9 @@ fixture too, so the redactor knows every app even if the input lacks a `pm list`
 - The git hooks in `.githooks/` enforce the commit discipline (install:
   `git config core.hooksPath .githooks`, plus `git config diff.ignoreSubmodules
   all`, so a `git status` outside the sandbox, e.g. Claude Code's own, never runs
-  the config of a submodule the sandbox planted). pre-commit checks the staged tree with
+  the config of a submodule the sandbox planted, and `git config push.useBitmaps
+  false`, so git push walks the same history the pre-push hook checked; the hook
+  refuses to run without it). pre-commit checks the staged tree with
   ruff, mypy and pytest; pre-push runs both third-party checks on every commit
   being pushed and fails closed without the app list. Never bypass them with
   `--no-verify`; if a hook is wrong, fix the hook.
