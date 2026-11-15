@@ -24,7 +24,7 @@ change files. You have no network access.
 You'll be given one or more report files (by default
 `docs/sample-report.md`; read the `.html` too if asked). Read the whole
 report top to bottom once as the owner would, then go back and list problems.
-You may glance at `appopsy/report/apps.yaml` to learn which access is an app's
+You may glance at `src/appopsy/report/apps.yaml` to learn which access is an app's
 core function, and at `CLAUDE.md` ("Report rules", "Report length") for what
 the report promises.
 

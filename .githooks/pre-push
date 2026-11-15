@@ -6,8 +6,8 @@
 # Install once with:  git config core.hooksPath .githooks
 set -eu
 # This hook runs outside the Claude Code sandbox (an excluded push, or a terminal),
-# on files the sandbox can write. The editable install puts the repo root on the
-# import path, so no pydantic plugins from planted *.dist-info; and git shows the
+# on files the sandbox can write. No pydantic plugins (a second layer: since the
+# src/ layout, a *.dist-info planted at the repo root isn't on the import path); git shows the
 # real objects and parents, not replacements or grafts a sandboxed process could add
 # (refs/replace here; .git/info/grafts once the scratch folder exists, below).
 export PYDANTIC_DISABLE_PLUGINS=__all__ GIT_NO_REPLACE_OBJECTS=1
@@ -132,9 +132,19 @@ while read -r local_ref local_sha remote_ref remote_sha; do
         # the whole public set: any commit that changes it must verify against
         # Wikidata (every row there, at least 95% of a fresh generation), or the
         # push is refused, offline included.
-        names_file="appopsy/report/app_names.tsv"
-        if git diff-tree --root --no-commit-id --name-only -r "$c" | grep -qxF "$names_file" \
-            && [ -f "$dir/$names_file" ]; then
+        names_file="src/appopsy/report/app_names.tsv"
+        # "Changes it" means new content, not a new path: a pure rename keeps the blob,
+        # which was already verified at this path or scanned whole by the apps check
+        # anywhere else. So verify unless the parent commit holds the identical blob.
+        names_new=no
+        if [ -f "$dir/$names_file" ]; then
+            blob=$(git rev-parse "$c:$names_file")
+            if ! git rev-parse -q --verify "$c^" >/dev/null \
+                || ! git ls-tree -r "$c^" | awk '{print $3}' | grep -qxF "$blob"; then
+                names_new=yes
+            fi
+        fi
+        if [ "$names_new" = yes ]; then
             code=0
             # The working tree's script, never the pushed commit's: a commit can be
             # written from inside the Claude Code sandbox, and this hook runs outside it.

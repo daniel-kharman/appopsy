@@ -14,7 +14,7 @@ The reasons behind these and the other key design choices are in
 one, and update it in the same PR if the reason no longer holds.
 
 1. **Read-only, enforced in code.** All adb calls go through one wrapper
-   (`appopsy/adb.py`) that only executes commands on an explicit allowlist.
+   (`src/appopsy/adb.py`) that only executes commands on an explicit allowlist.
    Anything that changes device state (`pm uninstall`, `pm disable`, `appops set`,
    `settings put`, `am`, `input`, `cmd package`, `reboot`, etc.) is refused with an
    error. Add a test that proves refusal. Never bypass the wrapper.
@@ -51,7 +51,7 @@ annoying" (privacy) or "I've been compromised" (security)?
 Implementation:
 - Everything except rules is **shared**: adb wrapper, collectors, parsers, models,
   rules engine, report renderer. Collectors are not owned by a pack.
-- Rules live in `appopsy/rules/specs/privacy/` and `appopsy/rules/specs/security/`
+- Rules live in `src/appopsy/rules/specs/privacy/` and `src/appopsy/rules/specs/security/`
   (inside the package, loaded with `importlib.resources`). The rule schema has a
   required `pack: privacy | security` field **from the first commit**, even
   though Phase 1 ships privacy rules only.
@@ -74,14 +74,14 @@ removal step. The README says this too.
 
 - Python 3.12+, managed with `uv`
 - CLI: `typer`; output: `rich` for terminal, Jinja2 for HTML/Markdown reports
-- Rules: YAML files in `appopsy/rules/specs/`, validated with `pydantic`
-- Tests: `pytest`; lint/format: `ruff`; types: `mypy` (strict on `appopsy/`)
+- Rules: YAML files in `src/appopsy/rules/specs/`, validated with `pydantic`
+- Tests: `pytest`; lint/format: `ruff`; types: `mypy` (strict on `src/appopsy/`)
 - CI: GitHub Actions running lint, types and tests against fixtures (no device needed)
 
 ## Layout
 
 ```
-appopsy/
+src/appopsy/
   adb.py            # allowlisted, read-only adb runner; device selection; timeouts
   case.py           # case folder writer: raw/, parsed/, manifest.json (0700 dirs, 0600 files)
   redact.py         # identifier detectors shared by redact-fixture and the CI fixture scanner
@@ -191,11 +191,11 @@ sensor it didn't use.
 
 Report rules: every "What you can do" app line gives a concrete step (a Settings
 path) or is omitted, and never suggests narrowing an app's core-function access
-(`core:` in `appopsy/report/apps.yaml`, e.g. Phone: contacts, call log).
+(`core:` in `src/appopsy/report/apps.yaml`, e.g. Phone: contacts, call log).
 
-Rules engine (`appopsy/rules/`):
+Rules engine (`src/appopsy/rules/`):
 - Rule **logic lives in registered, typed Python functions**
-  (`@rule_function("<id>", thresholds=...)` in `appopsy/rules/<pack>.py`). The YAML
+  (`@rule_function("<id>", thresholds=...)` in `src/appopsy/rules/<pack>.py`). The YAML
   spec holds id, pack, title, severity, thresholds, description, rationale,
   benign explanations and remediation, and names its function by id. **No YAML
   condition language.** Loading refuses a spec whose severity isn't on its pack's
@@ -217,11 +217,11 @@ Rules engine (`appopsy/rules/`):
   always go there too. Cases without the launcher query treat every system
   package as `system`. See `docs/rule-ideas.md`.
 
-Report (`appopsy/report/`): one view model (`build.py`) rendered as Markdown and as a
+Report (`src/appopsy/report/`): one view model (`build.py`) rendered as Markdown and as a
 single self-contained HTML file (inline CSS; no scripts, fonts or anything loaded
 from the network, so opening a report contacts nobody; autoescaped). Summary table, findings by severity, per-app detail, and a "what you can
 do" section (e.g. set battery to Restricted, change permission to "Only while
-using"). `--redact` (`appopsy/report/redaction.py`) writes a shareable copy:
+using"). `--redact` (`src/appopsy/report/redaction.py`) writes a shareable copy:
 every app the user installed, however well known, is shown as "Installed app
 <id>"; only system components and apps that came with the phone keep their names
 (no name list makes an installed app public), the id an HMAC under a key made fresh per render (not
@@ -276,7 +276,7 @@ properties become `en-US`. Replacement is consistent across files.
 
 **Time shift.** Timestamps say when the owner used each app, so every timestamp in
 a capture is moved by **one constant offset** so that the capture happens at
-`2030-01-01T00:00:00Z` (`ANCHOR` in `appopsy/redact_time.py`, the only place it is set:
+`2030-01-01T00:00:00Z` (`ANCHOR` in `src/appopsy/redact_time.py`, the only place it is set:
 later than any real build or security patch date, so ages computed from
 fixtures are never negative), and written in UTC. The offset belongs to the capture, not
 the file: every file in a capture folder (date files, getprop boot times,
@@ -289,7 +289,7 @@ epoch milliseconds, and getprop boot times. Not shifted: build dates (same on
 every device), times relative to boot, and install/update times (normalised to
 `2000-01-01 00:00:00`). `redact-fixture` refuses inputs with more than one
 capture clock, or timestamps without one; CI fails on any time after the anchor.
-Code: `appopsy/redact_time.py`. When a new source has a new time format, add it
+Code: `src/appopsy/redact_time.py`. When a new source has a new time format, add it
 there before committing the fixture.
 
 **Capture folders.** Every multi-file fixture is its own capture folder,
@@ -311,7 +311,7 @@ and domain-verification IDs. `--packages FILE` substitutes your own allowlist.
 No other real third-party package may appear in any fixture, test or doc; tests
 use `com.example.*` / `org.example.*` for disallowed apps.
 
-**The one exemption: the Wikidata names file.** `appopsy/report/app_names.tsv`
+**The one exemption: the Wikidata names file.** `src/appopsy/report/app_names.tsv`
 (friendly names, CC0) lists every app with a "Google Play Store app ID" on
 Wikidata, so it necessarily names some of anyone's apps without revealing which.
 It is generated by `scripts/update_app_names.py`, never edited by hand, and only
@@ -333,7 +333,7 @@ back to one phone. Today that covers hardware IDs (`ro.boot.hw.soc.id`,
 `/data/app/~~…==` segments, domain-verification IDs, theme overlay `.frro`
 suffixes, data-directory inode numbers, signing keyset IDs, carrier IDs inside
 property names (`....carrier<N>`) and the setupwizard compliance date. When a new
-source shows a new one, add it to `appopsy/redact.py` before committing the
+source shows a new one, add it to `src/appopsy/redact.py` before committing the
 fixture. Kept on purpose: values that change every boot (object hashes such as
 `Package{f39ba71 …}`, `cache_key.*`), values shared by every device on a build
 (fingerprints, partition digests, build UUIDs), and app UIDs (rules join appops
@@ -396,7 +396,7 @@ fixture too, so the redactor knows every app even if the input lacks a `pm list`
 - **Never push to `main`.** It is protected (pull requests and CI required, no
   force pushes). Work on one branch per task, push the branch (the pre-push hook
   still runs), open a PR with `gh pr create`, and the maintainer merges. Updates
-  to `appopsy/report/app_names.tsv` only ever land through a PR that shows the diff.
+  to `src/appopsy/report/app_names.tsv` only ever land through a PR that shows the diff.
 - Every commit ends with the `Co-Authored-By:` trailer.
 - Commit timestamps carry the local UTC offset. To leave it out, commit with
   `TZ=UTC` (e.g. `TZ=UTC git commit …`). This is optional, and existing history
@@ -456,7 +456,7 @@ opening PRs (`/ship`).
 Tools:
 - Reviewers (read-only, no network): `privacy-reviewer` (always, before every
   PR and on every fixture), `report-reader` (when report output changes),
-  `allowlist-guard` (when `appopsy/adb.py`, `appopsy/collectors/`, `.claude/`,
+  `allowlist-guard` (when `src/appopsy/adb.py`, `src/appopsy/collectors/`, `.claude/`,
   `.githooks/` or `.github/` change).
 - Skills: `/ship` (checks, reviewers, PR), `/capture-fixture` (maintainer
   only), `/post-launch-check` (read-only `gh api` audit of repo settings).
@@ -464,7 +464,7 @@ Tools:
   `.claude/settings.json`; see `docs/decisions.md` entry 12). Bash commands and
   everything they start run in it: no network at all, no writes outside the
   repo and temp (and not to `.venv/`, `.githooks/`, git's config and hooks,
-  `appopsy/`, `scripts/` or root-level `*.py`/`*.toml`/`*.ini`/`*.cfg` files,
+  `src/appopsy/`, `scripts/` or root-level `*.py`/`*.toml`/`*.ini`/`*.cfg` files,
   which run or configure what runs outside it: edit those with Edit/Write), no reads of
   credentials, `cases/` or `reports/`. Only `git push -u origin <branch>`,
   `gh pr create|view` and `gh api` run outside it, and only when issued as a
@@ -497,7 +497,7 @@ Tools:
   --check --third-party-list`. Edits to `.claude/settings.json`,
   `.claude/hooks/`, `.claude/agents/`, `.githooks/` and `.github/` always ask.
   Personal overrides go in `.claude/settings.local.json` (gitignored).
-- PRs touching `.claude/`, `.githooks/`, `.github/`, `appopsy/adb.py`, the
+- PRs touching `.claude/`, `.githooks/`, `.github/`, `src/appopsy/adb.py`, the
   collectors, the redaction code, the safety tests, `pyproject.toml` or
   `scripts/` get the `security-sensitive` label
   (`.github/workflows/sensitive-paths.yml`): the maintainer reviews those by

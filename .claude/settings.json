@@ -117,7 +117,7 @@
         "./.git/commondir",
         "./.git/worktrees",
         "./.git/hooks",
-        "./appopsy",
+        "./src",
         "./scripts",
         "./pyproject.toml",
         "./uv.lock",

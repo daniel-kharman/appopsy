@@ -735,32 +735,34 @@ def scan_tree(
     any mention of those apps anywhere in the files, not just where a package
     name is expected.
     """
-    texts: list[tuple[Path, str]] = []
-    for path, _ in iter_files(sources, committable_only=True):
+    texts: list[tuple[Path, Path, str]] = []
+    for path, rel in iter_files(sources, committable_only=True):
         try:
-            texts.append((path, path.read_text(encoding="utf-8")))
+            texts.append((path, rel, path.read_text(encoding="utf-8")))
         except UnicodeDecodeError:
             continue
-    packages = policy_for_tree(((p.name, t) for p, t in texts), allowlist)
-    findings = [(path, f) for path, text in texts for f in scan(text, packages, path.name)]
+    packages = policy_for_tree(((p.name, t) for p, _, t in texts), allowlist)
+    findings = [(path, f) for path, _, text in texts for f in scan(text, packages, path.name)]
     if third_party:
         packages.listed |= third_party
         findings += [
             (path, Finding("my_app", name, line))
-            for path, text in texts
-            for line, name in packages.known_mentions(_names_file_exempt(path, text))
+            for path, rel, text in texts
+            for line, name in packages.known_mentions(_names_file_exempt(rel, text))
         ]
     return findings
 
 
-def _names_file_exempt(path: Path, text: str) -> str:
+def _names_file_exempt(rel: Path, text: str) -> str:
     """The one exemption from the "your apps" check: the rows of the generated
-    Wikidata names file (appopsy/report/app_names.tsv). It lists every app with a
+    Wikidata names file (src/appopsy/report/app_names.tsv). It lists every app with a
     Play ID on Wikidata, so it necessarily names some of anyone's apps without
-    revealing which. Only while the file validates (strict format, at least
-    MIN_ROWS rows, the generator's exact query in the header); its header is
-    always scanned, and an invalid file is scanned whole (fail closed). Line
-    numbers are kept by blanking the exempt rows."""
-    if not path.as_posix().endswith(app_names.PATH_IN_REPO) or app_names.validate(text):
+    revealing which. Only that exact path relative to the scanned root (the repo, or
+    the pushed tree in the pre-push hook, which also verifies that one file against
+    Wikidata), never a copy elsewhere that merely ends the same way; and only while
+    the file validates (strict format, at least MIN_ROWS rows, the generator's exact
+    query in the header). Its header is always scanned, and an invalid file is
+    scanned whole (fail closed). Line numbers are kept by blanking the exempt rows."""
+    if rel.as_posix() != app_names.PATH_IN_REPO or app_names.validate(text):
         return text
     return "\n".join(line if line.startswith("#") else "" for line in text.splitlines())

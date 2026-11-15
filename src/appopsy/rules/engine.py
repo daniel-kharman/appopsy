@@ -42,7 +42,7 @@ SEVERITIES: dict[str, tuple[str, ...]] = {
 # framed like installed apps. system: platform components without an icon.
 AppClass = Literal["user_installed", "preinstalled", "system", "unknown"]
 Section = Literal["main", "system"]
-# Specs ship inside the package (appopsy/rules/specs/<pack>/<id>.yaml), so an
+# Specs ship inside the package (src/appopsy/rules/specs/<pack>/<id>.yaml), so an
 # installed appopsy finds them without the repo.
 RULES_DIR: Traversable = resources.files("appopsy.rules") / "specs"
 

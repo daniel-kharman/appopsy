@@ -1,6 +1,6 @@
 """Which files in a folder git tracks or could commit, for the third-party checks.
 
-Besides appopsy/adb.py, this is the only module that starts a process, and it runs
+Besides src/appopsy/adb.py, this is the only module that starts a process, and it runs
 exactly one read-only command with a fixed argument list:
 `git -C <folder> ls-files -co --exclude-standard -z`. Ignored paths (a local
 `cases/` folder, `.venv/`) are left out, so the owner's own case data doesn't fail

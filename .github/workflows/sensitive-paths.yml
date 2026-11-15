@@ -35,8 +35,8 @@ jobs:
             --jq '.[] | .filename, (.previous_filename // empty)')
           # The adb wrapper, collectors, hooks, CI, Claude Code config, and the
           # code and tests that hold the privacy and read-only checks.
-          sensitive='^(\.claude/|\.githooks/|\.github/|appopsy/adb\.py$|appopsy/collectors/'
-          sensitive="$sensitive"'|appopsy/redact[^/]*\.py$|appopsy/report/redaction\.py$'
+          sensitive='^(\.claude/|\.githooks/|\.github/|src/appopsy/adb\.py$|src/appopsy/collectors/'
+          sensitive="$sensitive"'|src/appopsy/redact[^/]*\.py$|src/appopsy/report/redaction\.py$'
           sensitive="$sensitive"'|tests/test_(adb_allowlist|no_adb_bypass|fixtures_clean|claude_config|hooks)\.py$'
           sensitive="$sensitive"'|pyproject\.toml$|scripts/)'
           hits=$(printf '%s\n' "$files" | grep -E "$sensitive" | sort -u || true)

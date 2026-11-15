@@ -70,7 +70,7 @@ remains), strips identifiers, normalises per-device values, and shifts every
 timestamp so the capture sits on 2030-01-01T00:00:00Z. Never pass `--mapping`
 (it would write personal data); never redact files from two captures together.
 If it refuses (a second capture clock, an unshifted time format), stop: the fix
-belongs in `appopsy/redact*.py` with a synthetic test, and that's a separate
+belongs in `src/appopsy/redact*.py` with a synthetic test, and that's a separate
 change the maintainer should hear about.
 
 If `$ARGUMENTS` says the fixture is for a specific parser or rule, you may

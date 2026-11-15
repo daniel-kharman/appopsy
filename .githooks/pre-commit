@@ -21,7 +21,7 @@ env_check() {
         exit 1
     fi
 }
-env_check "$bin/python" -c "import appopsy, mypy, pytest"
+env_check "$bin/python" -I -c "import appopsy, mypy, pytest"
 env_check "$bin/ruff" --version
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/appopsy-pre-commit.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT INT TERM

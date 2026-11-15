@@ -1,6 +1,6 @@
 ---
 name: allowlist-guard
-description: Read-only security review of any change to appopsy/adb.py, appopsy/collectors/, .claude/, .githooks/ or .github/. Checks for state-changing or network commands, injection risk, unused allowlist rules, widened permissions, and weakened hooks or CI checks. The /ship skill runs it whenever those paths change.
+description: Read-only security review of any change to src/appopsy/adb.py, src/appopsy/collectors/, .claude/, .githooks/ or .github/. Checks for state-changing or network commands, injection risk, unused allowlist rules, widened permissions, and weakened hooks or CI checks. The /ship skill runs it whenever those paths change.
 tools: Read, Grep, Glob, Bash
 disallowedTools: Edit, Write, NotebookEdit, WebFetch, WebSearch, Agent
 model: opus
@@ -30,11 +30,11 @@ will run them.
 
 Read `CLAUDE.md` first (Principle 1 and "Working style"), then
 `docs/decisions.md`. If no scope was given, review
-`git diff origin/main...HEAD -- appopsy/adb.py appopsy/collectors .claude .githooks .github`.
+`git diff origin/main...HEAD -- src/appopsy/adb.py src/appopsy/collectors .claude .githooks .github`.
 Read the whole changed file, not only the hunk, when the hunk alone can't show
 intent.
 
-## appopsy/adb.py and collectors
+## src/appopsy/adb.py and collectors
 
 1. **State-changing commands.** Every entry in `ALLOWED_SHELL`/`ALLOWED_HOST`
    must be read-only on every Android version. Know the traps: `dumpsys`

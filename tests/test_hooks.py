@@ -284,7 +284,7 @@ def test_pre_push_verifies_a_changed_names_file(
 ) -> None:
     """A commit that changes the Wikidata names file must pass --verify (a stub here,
     so the test needs no network); exit 2 (Wikidata unreachable) also refuses."""
-    names = repo / "appopsy" / "report" / "app_names.tsv"
+    names = repo / "src" / "appopsy" / "report" / "app_names.tsv"
     names.parent.mkdir(parents=True)
     names.write_text("# not the real file\n")
     script = repo / "scripts" / "update_app_names.py"
@@ -303,7 +303,7 @@ def test_pre_push_runs_the_working_tree_verify_script_not_the_pushed_one(
 ) -> None:
     """A commit can be written from inside the Claude Code sandbox, and this hook runs
     outside it, so it never runs code taken from the pushed commit."""
-    names = repo / "appopsy" / "report" / "app_names.tsv"
+    names = repo / "src" / "appopsy" / "report" / "app_names.tsv"
     names.parent.mkdir(parents=True)
     names.write_text("# not the real file\n")
     script = repo / "scripts" / "update_app_names.py"
@@ -315,6 +315,31 @@ def test_pre_push_runs_the_working_tree_verify_script_not_the_pushed_one(
     result = push_hook(repo, app_list.parent, app_list)
     assert result.returncode == 0, result.stderr
     assert "pushed copy ran" not in result.stderr + result.stdout
+
+
+def test_pre_push_moving_the_names_file_is_not_a_change(repo: Path, app_list: Path) -> None:
+    """A pure rename (same content) doesn't re-verify against Wikidata, which drifts;
+    new content at the path does."""
+    old = repo / "appopsy" / "report" / "app_names.tsv"
+    old.parent.mkdir(parents=True)
+    old.write_text("# not the real file\n")
+    script = repo / "scripts" / "update_app_names.py"
+    script.parent.mkdir()
+    script.write_text("import sys\nprint('verify ran')\nsys.exit(1)\n")  # fails if it runs
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "--no-verify", "-m", "names file at the old path")
+    git(repo, "push", "-q", "--no-verify", "origin", "main")
+    new = repo / "src" / "appopsy" / "report" / "app_names.tsv"
+    new.parent.mkdir(parents=True)
+    git(repo, "mv", "appopsy/report/app_names.tsv", "src/appopsy/report/app_names.tsv")
+    git(repo, "commit", "-q", "--no-verify", "-m", "move it")
+    result = push_hook(repo, app_list.parent, app_list)
+    assert result.returncode == 0, result.stderr
+    new.write_text("# edited\n")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "--no-verify", "-m", "edit it")
+    result = push_hook(repo, app_list.parent, app_list)
+    assert result.returncode == 1 and "verify ran" in result.stderr
 
 
 def test_pre_push_skips_verify_when_the_names_file_is_unchanged(repo: Path, app_list: Path) -> None:

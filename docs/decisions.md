@@ -6,7 +6,7 @@ update the entry in the same pull request as the change.
 
 ## 1. Read-only, enforced by an exact-token allowlist
 
-**Decision.** Every adb call goes through `appopsy/adb.py`, which runs a command
+**Decision.** Every adb call goes through `src/appopsy/adb.py`, which runs a command
 only if it matches an allowlisted shape token by token. Variable tokens must
 fully match strict patterns that can't carry shell metacharacters. The list
 holds only commands a collector runs today; a test fails on any unused rule.
@@ -34,7 +34,7 @@ removal, because removing stalkerware can alert whoever installed it.
 ## 3. Fixture timestamps shifted to 2030-01-01T00:00:00Z
 
 **Decision.** `redact-fixture` moves every timestamp in a capture by one
-constant offset, so the capture happens at `ANCHOR` (`appopsy/redact_time.py`).
+constant offset, so the capture happens at `ANCHOR` (`src/appopsy/redact_time.py`).
 Local times are converted with the device timezone (DST-aware) first. CI fails
 on any time after the anchor.
 
@@ -97,7 +97,7 @@ reversed by hashing popular package names.
 
 ## 8. Wikidata names are for display only
 
-**Decision.** `appopsy/report/app_names.tsv` (CC0, generated from Wikidata,
+**Decision.** `src/appopsy/report/app_names.tsv` (CC0, generated from Wikidata,
 never hand-edited) only supplies friendly names. Redaction treats only system
 packages and `apps.yaml` as public; a name in this file doesn't make an app
 public. The file is exempt from the apps-only check only while it validates,
@@ -184,13 +184,14 @@ programs), in an OS-level sandbox (Seatbelt on macOS):
   `~/.git-credentials`, `~/.config/gh`, `~/.docker`, `~/.kube`, the keychains)
   and of the repo's `cases/` and `reports/` are denied.
 - **Writes** go only to the repo and temp, and not to what runs, or configures
-  what runs, outside the sandbox: `.venv/`, `.githooks/`, `appopsy/`,
+  what runs, outside the sandbox: `.venv/`, `.githooks/`, `src/appopsy/`,
   `scripts/`; git's `config`, `config.worktree`, `commondir` (which can point
   git at another config), `worktrees/` and `hooks/`; and every root-level
   `*.py`, `*.pth`, `*.ini`, `*.cfg`, `*.toml`, `.python-version`,
   `*.dist-info`/`*.egg-info` (entry points, e.g. pydantic plugins), and
-  `sitecustomize`/`usercustomize` packages (the editable install puts the repo
-  root on the venv's import path); and `.git/modules`, `.gitmodules`. Claude Code also protects
+  `sitecustomize`/`usercustomize` packages (kept from before the `src/` layout,
+  when the editable install put the repo root on the import path); and
+  `.git/modules`, `.gitmodules`. Claude Code also protects
   `.claude/settings.json`, `.claude/hooks/`, `.claude/skills/` and
   `.claude/agents/`, and renaming a protected folder is blocked too (tested).
   The rule: **nothing outside the sandbox runs code that sandboxed code could
@@ -206,7 +207,7 @@ programs), in an OS-level sandbox (Seatbelt on macOS):
   excluded only when issued alone: anything chained to them keeps the whole
   line sandboxed (tested). Only commands Claude issues match; code in the
   sandbox can't trigger them. The push runs the pre-push hook outside the
-  sandbox, which is why its code (`.githooks/`, `.venv/`, `appopsy/`,
+  sandbox, which is why its code (`.githooks/`, `.venv/`, `src/appopsy/`,
   `scripts/`) is write-denied inside, and why it runs the working tree's
   `scripts/update_app_names.py`, never the copy in the pushed commit (the
   sandbox can write commits). Talking to the phone isn't excluded: the
@@ -247,16 +248,13 @@ covers code nobody typed: tests, dependencies, git config programs.
 - Anything committed leaves with the push. The pre-push scans catch app names
   and fixture identifiers, not arbitrary data, so pushes are reviewed through
   their PR.
-- **A new top-level package folder** (other than `sitecustomize` and
-  `usercustomize`) can still be created from the sandbox. Through the editable
-  install it would be importable by an unsandboxed appopsy run (the pre-push
-  hook, the guard's apps check) if something imported it by name: an optional
-  import of a module that isn't installed, or an entry point. Entry points need
-  a `*.dist-info`, which is write-denied, and pydantic plugins are switched off
-  (`PYDANTIC_DISABLE_PLUGINS=__all__` in the settings, the hook and the guard);
-  a planted plugin was shown to load before that. The full fix is a `src/`
-  layout (planned next), so the venv no longer puts the repo root on the import
-  path.
+- **The import path.** The package lives in `src/` (a `src/` layout), so the
+  editable install puts `src/`, which the sandbox can't write, on the venv's
+  import path, not the repo root. A folder or `*.dist-info` planted at the root
+  is no longer importable by unsandboxed appopsy runs (the pre-push hook, the
+  guard's apps check). Before the move, a planted pydantic plugin was shown to
+  load; root-level `*.dist-info` stay write-denied and pydantic plugins stay off
+  (`PYDANTIC_DISABLE_PLUGINS=__all__`) as a second layer.
 - **Nested repositories.** The sandbox can't write a nested `.git/config` or
   `.git/hooks` (Claude Code protects them), but a `.git` *file* can point git at
   a writable folder with its own config. So the push and gh commands run only
