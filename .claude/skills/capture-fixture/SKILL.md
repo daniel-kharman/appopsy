@@ -19,20 +19,25 @@ raw capture as in step 6.
 ## 0. Preconditions
 
 - Working tree clean and on a branch other than `main` (create one,
-  `git switch -c fixture-<short-purpose>`, if needed).
+  `git switch -c fixture-<short-purpose> --no-track`, if needed).
 - `~/.config/appopsy/my-apps.txt` exists with mode 0600
   (`stat -f %Lp ~/.config/appopsy/my-apps.txt` on macOS). If not, stop and ask.
-- `uv run appopsy devices` shows exactly one device in state `device`. If not,
-  stop and tell the maintainer what it shows.
 
-## 1. Capture into the scratchpad, never the repo
+## 1. The maintainer captures; you never talk to the phone
+
+The sandbox has no network, so adb can't reach its server from it, and running
+appopsy outside the sandbox would run working-tree code with the phone and the
+maintainer's rights. So the maintainer runs both commands in their own
+terminal, after checking `git status` is clean. Give them exactly:
 
 ```
+uv run appopsy devices
 uv run appopsy audit --cases-dir "<scratchpad>/cases"
 ```
 
 `<scratchpad>` is the session scratchpad directory from your system prompt.
-Never pass a path inside the repository. Note the case folder it prints.
+Never pass a path inside the repository. Wait for them to tell you the case
+folder it printed, then continue inside the sandbox.
 
 ## 2. Look only through the mask
 

@@ -47,8 +47,8 @@ def run_hook(
         "tool_name": tool,
         "tool_input": tool_input if tool_input is not None else {"command": command},
     }
-    if cwd is None and (reviewer or agent_type):
-        cwd = VENV.parent
+    if cwd is None:
+        cwd = VENV.parent  # the project root, as in a session
     if agent_type:
         event["agent_type"] = agent_type
     if scratchpad:
@@ -98,6 +98,8 @@ ROUTINE = [
     "git commit -am 'Fix #12: a {brace} and $HOME, literally'",
     "git switch -c fix-foo origin/main",
     "git checkout -b feature-x",
+    "git switch -c fix-foo origin/main --no-track",
+    "git switch -c fix-foo --no-track origin/main",
     "git status\ngit diff --stat",
     "cat ~/notes.txt",
     "echo hi",
@@ -1043,3 +1045,95 @@ def test_a_hung_decision_still_answers_by_the_deadline(
         out = json.loads(capsys.readouterr().out)
         assert out["hookSpecificOutput"]["permissionDecision"] == expected
     assert exits == [0, 0]
+
+
+# --- The sandbox: the security boundary (docs/decisions.md entry 12) ---------------
+
+
+def test_sandbox_is_on_strict_and_offline() -> None:
+    settings = json.loads((CLAUDE / "settings.json").read_text())
+    sandbox = settings["sandbox"]
+    assert sandbox["enabled"] is True
+    assert sandbox["failIfUnavailable"] is True
+    assert sandbox["allowUnsandboxedCommands"] is False  # no unsandboxed retries
+    assert sandbox["autoAllowBashIfSandboxed"] is False  # permissions still decide
+    network = sandbox["network"]
+    assert network["deniedDomains"] == ["*"]  # holds in every permission mode
+    assert network.get("allowedDomains", []) == []
+    for key in ("allowUnixSockets", "allowAllUnixSockets", "allowLocalBinding",
+                "allowMachLookup", "httpProxyPort", "socksProxyPort"):  # fmt: skip
+        assert key not in network, key
+    filesystem = sandbox["filesystem"]
+    for path in ("~/.ssh", "~/.aws", "~/.config/gh", "~/Library/Keychains", "./cases",
+                 "./reports"):  # fmt: skip
+        assert path in filesystem["denyRead"], path
+    for key in ("allowRead", "allowWrite", "disabled"):
+        assert key not in filesystem, key
+    # Nothing outside the sandbox may run code that sandboxed code could change: the
+    # excluded push runs the pre-push hook, which runs .venv, appopsy/ and scripts/.
+    for path in ("./.venv", "./.githooks", "./.git/config", "./.git/config.worktree",
+                 "./.git/commondir", "./.git/worktrees", "./.git/hooks", "./appopsy",
+                 "./scripts", "./pyproject.toml", "./uv.lock", "./*.py", "./*.pth",
+                 "./*.ini", "./*.cfg", "./*.toml", "./.python-version", "./*.dist-info",
+                 "./*.egg-info", "./.git/modules", "./.gitmodules",
+                 "./sitecustomize", "./usercustomize"):  # fmt: skip
+        assert path in filesystem["denyWrite"], path
+    for key in ("allowAppleEvents", "enableWeakerNetworkIsolation"):
+        assert key not in sandbox, key
+
+
+def test_sandbox_exclusions_are_the_narrow_commands_that_need_github_or_the_phone() -> None:
+    settings = json.loads((CLAUDE / "settings.json").read_text())
+    assert settings["sandbox"]["excludedCommands"] == [
+        "git push -u origin *",
+        "gh pr create *",
+        "gh pr view *",
+        "gh api *",
+    ]
+    # Every git/gh exclusion is also a pre-approved, guarded command, so it can't
+    # run anything the guard hasn't seen.
+    allow = settings["permissions"]["allow"]
+    for excluded in settings["sandbox"]["excludedCommands"]:
+        if excluded.startswith(("git ", "gh ")):
+            assert f"Bash({excluded})" in allow, excluded
+
+
+def test_uv_cache_stays_in_the_repo() -> None:
+    settings = json.loads((CLAUDE / "settings.json").read_text())
+    assert settings["env"]["UV_CACHE_DIR"] == ".uv-cache"
+    assert settings["env"]["UV_OFFLINE"] == "1"
+    # A planted *.dist-info at the repo root (on the editable install's import path)
+    # could otherwise register a pydantic plugin in unsandboxed appopsy runs.
+    assert settings["env"]["PYDANTIC_DISABLE_PLUGINS"] == "__all__"
+    assert ".uv-cache/" in (ROOT / ".gitignore").read_text().splitlines()
+
+
+@pytest.mark.parametrize(
+    "command",
+    ["gh api repos/o/r", "gh pr view 9", "gh pr create -t a -b b"],
+)
+def test_github_commands_only_from_the_repo_root(command: str, tmp_path: Path) -> None:
+    """They run outside the sandbox: from a nested repo the sandbox planted, git would
+    use that repo's config."""
+    nested = VENV.parent / "tests"
+    assert run_hook(command, cwd=nested) == "ask"
+    assert run_hook(command, cwd=tmp_path) == "ask"
+
+
+@pytest.mark.skipif(GIT is None, reason="needs git")
+def test_push_and_pr_create_refuse_a_staged_submodule(push_repo: Path) -> None:
+    """With a gitlink staged, git status runs the submodule's own config (e.g. its
+    core.fsmonitor) outside the sandbox."""
+    assert GIT is not None
+    head = subprocess.run(
+        [GIT, "-C", str(push_repo), "rev-parse", "HEAD"], capture_output=True, text=True,
+        check=True, env={**os.environ, **ISOLATED_GIT},
+    ).stdout.strip()  # fmt: skip
+    assert push_decision(push_repo, "git push -u origin feature-x") is None
+    subprocess.run(
+        [GIT, "-C", str(push_repo), "update-index", "--add", "--cacheinfo",
+         f"160000,{head},zzsub"],
+        check=True, env={**os.environ, **ISOLATED_GIT},
+    )  # fmt: skip
+    assert push_decision(push_repo, "git push -u origin feature-x") == "ask"
+    assert push_decision(push_repo, "gh pr create -t a -b b") == "ask"

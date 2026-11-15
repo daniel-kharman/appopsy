@@ -19,8 +19,10 @@ Repository: `$ARGUMENTS` if given, else the `owner/name` part of
 
 ## Queries
 
-Run them in a few batched commands. On a 404/403, record "not available or no
-access" for that item and carry on.
+Run each `gh api` call as a single command, filtering with `--jq` (no pipes,
+`;` or `&&`): `gh api` runs outside the sandbox only when it stands alone, and
+the sandbox has no network. On a 404/403, record "not available or no access"
+for that item and carry on.
 
 1. Repo: `repos/$R`: `visibility`, `default_branch`, `security_and_analysis`,
    `allow_squash_merge`, `allow_merge_commit`, `allow_rebase_merge`,

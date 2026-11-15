@@ -75,6 +75,67 @@
       "Bash(gh release delete *)"
     ]
   },
+  "env": {
+    "UV_CACHE_DIR": ".uv-cache",
+    "UV_OFFLINE": "1",
+    "PYDANTIC_DISABLE_PLUGINS": "__all__"
+  },
+  "sandbox": {
+    "enabled": true,
+    "failIfUnavailable": true,
+    "allowUnsandboxedCommands": false,
+    "autoAllowBashIfSandboxed": false,
+    "excludedCommands": [
+      "git push -u origin *",
+      "gh pr create *",
+      "gh pr view *",
+      "gh api *"
+    ],
+    "network": {
+      "allowedDomains": [],
+      "deniedDomains": ["*"]
+    },
+    "filesystem": {
+      "denyRead": [
+        "~/.ssh",
+        "~/.aws",
+        "~/.gnupg",
+        "~/.netrc",
+        "~/.git-credentials",
+        "~/.config/gh",
+        "~/.docker",
+        "~/.kube",
+        "~/Library/Keychains",
+        "./cases",
+        "./reports"
+      ],
+      "denyWrite": [
+        "./.venv",
+        "./.githooks",
+        "./.git/config",
+        "./.git/config.worktree",
+        "./.git/commondir",
+        "./.git/worktrees",
+        "./.git/hooks",
+        "./appopsy",
+        "./scripts",
+        "./pyproject.toml",
+        "./uv.lock",
+        "./*.py",
+        "./*.dist-info",
+        "./*.egg-info",
+        "./.git/modules",
+        "./.gitmodules",
+        "./sitecustomize",
+        "./usercustomize",
+        "./*.pth",
+        "./*.ini",
+        "./*.cfg",
+        "./*.toml",
+        "./.python-version"
+      ]
+    }
+  },
   "hooks": {
     "PreToolUse": [
       {
