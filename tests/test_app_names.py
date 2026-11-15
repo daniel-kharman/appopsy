@@ -170,6 +170,31 @@ def test_exemption_covers_only_that_path(tree: tuple[Path, set[str]]) -> None:
     assert my_app_findings(root, mine) == ["docs/app_names.tsv"]
 
 
+@pytest.mark.parametrize(
+    "elsewhere", ["docs/src/appopsy/report/app_names.tsv", "xsrc/appopsy/report/app_names.tsv"]
+)
+def test_exemption_needs_the_exact_path_not_a_matching_suffix(
+    tree: tuple[Path, set[str]], elsewhere: str
+) -> None:
+    """A validated copy whose path merely ends like the real one is scanned whole: the
+    pre-push hook verifies only the real file against Wikidata, so a copy could
+    otherwise carry one of your apps among 5,000 genuine rows."""
+    root, mine = tree
+    copy = root / elsewhere
+    copy.parent.mkdir(parents=True)
+    copy.write_text(synthetic({"com.example.bank": "Example Bank"}))
+    assert my_app_findings(root, mine) == [elsewhere]
+
+
+def test_exemption_is_relative_to_the_scanned_root(tree: tuple[Path, set[str]]) -> None:
+    """Scanning a subfolder (or the file alone) gives no exemption: the path must be
+    the repo's own, relative to the root being checked."""
+    root, mine = tree
+    (root / PATH_IN_REPO).write_text(synthetic({"com.example.bank": "Example Bank"}))
+    assert my_app_findings(root, mine) == []
+    assert my_app_findings(root / "src", mine) == ["appopsy/report/app_names.tsv"]
+
+
 # --- display only -------------------------------------------------------------------
 
 

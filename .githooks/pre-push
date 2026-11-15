@@ -6,8 +6,8 @@
 # Install once with:  git config core.hooksPath .githooks
 set -eu
 # This hook runs outside the Claude Code sandbox (an excluded push, or a terminal),
-# on files the sandbox can write. The editable install puts the repo root on the
-# import path, so no pydantic plugins from planted *.dist-info; and git shows the
+# on files the sandbox can write. No pydantic plugins (a second layer: since the
+# src/ layout, a *.dist-info planted at the repo root isn't on the import path); git shows the
 # real objects and parents, not replacements or grafts a sandboxed process could add
 # (refs/replace here; .git/info/grafts once the scratch folder exists, below).
 export PYDANTIC_DISABLE_PLUGINS=__all__ GIT_NO_REPLACE_OBJECTS=1

@@ -421,8 +421,8 @@ def apps_check(texts: list[str], files: list[str]) -> None:
                 [str(appopsy), "redact-fixture", "--check", "--apps-only",
                  "--third-party-list", str(app_list), str(text_file)],
                 capture_output=True, check=False, timeout=budget(30),
-                # The editable install puts the repo root on the import path, so a
-                # planted *.dist-info there could register a pydantic plugin.
+                # No pydantic plugins: a second layer (since the src/ layout, a
+                # *.dist-info planted at the repo root isn't on the import path).
                 env={**os.environ, "PYDANTIC_DISABLE_PLUGINS": "__all__"},
             )  # fmt: skip
         except subprocess.TimeoutExpired as e:

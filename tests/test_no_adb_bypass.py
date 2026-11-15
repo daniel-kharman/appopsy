@@ -46,6 +46,8 @@ EXEMPT = {PACKAGE / "adb.py", PACKAGE / "gitfiles.py"}
 
 
 def test_only_adb_wrapper_spawns_processes() -> None:
+    # A wrong PACKAGE path would otherwise scan nothing and pass.
+    assert (PACKAGE / "adb.py").is_file() and len(list(PACKAGE.rglob("*.py"))) > 20
     offenders = [
         f"{path.relative_to(PACKAGE.parent)}:{line} {what}"
         for path in PACKAGE.rglob("*.py")
