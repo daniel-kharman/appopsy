@@ -132,7 +132,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
         # the whole public set: any commit that changes it must verify against
         # Wikidata (every row there, at least 95% of a fresh generation), or the
         # push is refused, offline included.
-        names_file="appopsy/report/app_names.tsv"
+        names_file="src/appopsy/report/app_names.tsv"
         if git diff-tree --root --no-commit-id --name-only -r "$c" | grep -qxF "$names_file" \
             && [ -f "$dir/$names_file" ]; then
             code=0

@@ -21,7 +21,7 @@ appopsy reads personal data from a phone and promises not to change the device
 or leak what it reads. In scope, for example:
 
 - **Read-only guarantee:** any way to make appopsy run an adb command that isn't
-  on its allowlist (`appopsy/adb.py`), or a process outside the two places allowed
+  on its allowlist (`src/appopsy/adb.py`), or a process outside the two places allowed
   to start one (`adb.py`, `gitfiles.py`).
 - **Redaction:** a redacted report (`--redact`) or a fixture made with
   `redact-fixture` that still contains a private app name, a device identifier,

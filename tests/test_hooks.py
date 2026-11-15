@@ -284,7 +284,7 @@ def test_pre_push_verifies_a_changed_names_file(
 ) -> None:
     """A commit that changes the Wikidata names file must pass --verify (a stub here,
     so the test needs no network); exit 2 (Wikidata unreachable) also refuses."""
-    names = repo / "appopsy" / "report" / "app_names.tsv"
+    names = repo / "src" / "appopsy" / "report" / "app_names.tsv"
     names.parent.mkdir(parents=True)
     names.write_text("# not the real file\n")
     script = repo / "scripts" / "update_app_names.py"
@@ -303,7 +303,7 @@ def test_pre_push_runs_the_working_tree_verify_script_not_the_pushed_one(
 ) -> None:
     """A commit can be written from inside the Claude Code sandbox, and this hook runs
     outside it, so it never runs code taken from the pushed commit."""
-    names = repo / "appopsy" / "report" / "app_names.tsv"
+    names = repo / "src" / "appopsy" / "report" / "app_names.tsv"
     names.parent.mkdir(parents=True)
     names.write_text("# not the real file\n")
     script = repo / "scripts" / "update_app_names.py"

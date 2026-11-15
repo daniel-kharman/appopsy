@@ -52,8 +52,8 @@ and commit the result.
 | Reviewer | When |
 | --- | --- |
 | `privacy-reviewer` | always |
-| `report-reader` | `appopsy/report/`, `appopsy/rules/` (code or specs), `docs/sample-report.*` changed, or anything else that changes report text |
-| `allowlist-guard` | `appopsy/adb.py`, `appopsy/collectors/`, `.claude/`, `.githooks/` or `.github/` changed |
+| `report-reader` | `src/appopsy/report/`, `src/appopsy/rules/` (code or specs), `docs/sample-report.*` changed, or anything else that changes report text |
+| `allowlist-guard` | `src/appopsy/adb.py`, `src/appopsy/collectors/`, `.claude/`, `.githooks/` or `.github/` changed |
 
 Run the selected agents **in parallel** (one message, several Agent calls),
 each with an explicit scope: the diff range `origin/main...HEAD`, the list of

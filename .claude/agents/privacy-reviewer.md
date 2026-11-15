@@ -68,7 +68,7 @@ The scanners check known formats. You read for meaning:
    (including altitude/speed/bearing near a location), Bluetooth names, device
    names a person chose ("Sam's Pixel").
 2. **Time.** Every fixture timestamp must sit on or before the anchor
-   (`ANCHOR` in `appopsy/redact_time.py`, 2030-01-01T00:00:00Z) with one
+   (`ANCHOR` in `src/appopsy/redact_time.py`, 2030-01-01T00:00:00Z) with one
    constant shift per capture. Flag real-looking dates in prose, tests, docs,
    commit messages and reports (e.g. "captured last Tuesday at 07:23"), and any
    local wall-clock time or timezone that hints where the owner lives.
@@ -92,8 +92,8 @@ The scanners check known formats. You read for meaning:
    ("Installed app <id>"), times relative ("today", "3 days ago"), and no
    job/alarm name of an installed app may leak unless a public app shows the
    same name.
-7. **Redaction gaps in code.** If the diff touches `appopsy/redact*.py`,
-   `appopsy/report/redaction.py`, a collector, or a parser for a new source,
+7. **Redaction gaps in code.** If the diff touches `src/appopsy/redact*.py`,
+   `src/appopsy/report/redaction.py`, a collector, or a parser for a new source,
    ask: does a new field or format get past redaction or the time shift? Is
    there a test with a synthetic value proving it's caught?
 8. **The maintainer themself**: real name, email, username, home directory

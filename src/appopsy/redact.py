@@ -755,7 +755,7 @@ def scan_tree(
 
 def _names_file_exempt(path: Path, text: str) -> str:
     """The one exemption from the "your apps" check: the rows of the generated
-    Wikidata names file (appopsy/report/app_names.tsv). It lists every app with a
+    Wikidata names file (src/appopsy/report/app_names.tsv). It lists every app with a
     Play ID on Wikidata, so it necessarily names some of anyone's apps without
     revealing which. Only while the file validates (strict format, at least
     MIN_ROWS rows, the generator's exact query in the header); its header is

@@ -1,11 +1,11 @@
-"""Guards principle 1: nothing outside appopsy/adb.py may spawn processes."""
+"""Guards principle 1: nothing outside src/appopsy/adb.py may spawn processes."""
 
 from __future__ import annotations
 
 import ast
 from pathlib import Path
 
-PACKAGE = Path(__file__).resolve().parent.parent / "appopsy"
+PACKAGE = Path(__file__).resolve().parent.parent / "src" / "appopsy"
 FORBIDDEN_MODULES = {"subprocess", "pty", "multiprocessing"}
 # os functions that start processes.
 FORBIDDEN_OS = {
@@ -52,7 +52,7 @@ def test_only_adb_wrapper_spawns_processes() -> None:
         if path not in EXEMPT
         for line, what in _offences(ast.parse(path.read_text(), filename=str(path)))
     ]
-    assert offenders == [], f"process spawning outside appopsy/adb.py: {offenders}"
+    assert offenders == [], f"process spawning outside src/appopsy/adb.py: {offenders}"
 
 
 def test_gitfiles_runs_only_its_one_read_only_command() -> None:

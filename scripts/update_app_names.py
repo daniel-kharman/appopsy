@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate or verify appopsy/report/app_names.tsv from Wikidata (CC0).
+"""Generate or verify src/appopsy/report/app_names.tsv from Wikidata (CC0).
 
     uv run python scripts/update_app_names.py            # regenerate the file
     uv run python scripts/update_app_names.py --verify   # check the file against Wikidata

@@ -29,7 +29,9 @@ requires = ["uv_build>=0.8,<0.13"]
 build-backend = "uv_build"
 
 [tool.uv.build-backend]
-module-root = ""
+# src/ layout: the editable install then puts src/ on the import path, not the repo
+# root, so nothing else in the repo is importable from the venv (docs/decisions.md 12).
+module-root = "src"
 
 [tool.ruff]
 line-length = 100
@@ -43,11 +45,12 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "E501"]  # raw adb output fixtures have long lines
-"appopsy/redact.py" = ["E501"]  # detector regexes read best on one line
+"src/appopsy/redact.py" = ["E501"]  # detector regexes read best on one line
 
 [tool.mypy]
 strict = true
-files = ["appopsy"]
+files = ["src/appopsy"]
+mypy_path = "src"
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
@@ -56,6 +59,10 @@ strict = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# The package under test is the one next to the tests: the pre-commit hook runs them
+# in an exported copy of the staged tree, and this keeps that copy's src/ ahead of
+# the venv's editable install (the working tree).
+pythonpath = ["src"]
 addopts = "-ra -p no:pastebin"  # never upload test output
 
 [dependency-groups]

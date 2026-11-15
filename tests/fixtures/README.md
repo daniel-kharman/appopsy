@@ -8,7 +8,7 @@ produced by `appopsy redact-fixture` and reviewed by hand. Folders named
 `synthetic-*` are hand-written, not captured from a device.
 
 **Time.** Every timestamp in a capture is shifted by one constant so the capture
-happens at **2030-01-01T00:00:00Z** (`ANCHOR` in `appopsy/redact_time.py`), and written in UTC: the date files sit on
+happens at **2030-01-01T00:00:00Z** (`ANCHOR` in `src/appopsy/redact_time.py`), and written in UTC: the date files sit on
 that anchor, and access/reject times, boot times and Do Not Disturb changes keep
 their spacing relative to it. Timezone becomes `Etc/UTC` and locale `en-US`.
 Install/update times are normalised to midnight on 2000-01-01; build dates and

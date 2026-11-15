@@ -129,7 +129,7 @@ def test_format_problems_are_reported() -> None:
 @pytest.fixture
 def tree(tmp_path: Path) -> tuple[Path, set[str]]:
     root = tmp_path / "tree"
-    (root / "appopsy" / "report").mkdir(parents=True)
+    (root / PATH_IN_REPO).parent.mkdir(parents=True)
     (root / "README.md").write_text("Nothing personal.\n")
     return root, {"com.example.bank"}
 

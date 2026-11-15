@@ -22,7 +22,7 @@ import re
 from dataclasses import dataclass
 from importlib import resources
 
-PATH_IN_REPO = "appopsy/report/app_names.tsv"
+PATH_IN_REPO = "src/appopsy/report/app_names.tsv"
 MIN_ROWS = 5000  # it's the whole public set, never a short hand-picked list
 MAX_LABEL = 60
 QUERY = (

@@ -646,7 +646,7 @@ def test_reviewer_file_tools_stay_in_the_repo(tool: str, tool_input: dict[str, o
     [
         ("Read", {"file_path": str(VENV.parent / "README.md")}),
         ("Read", {"file_path": str(VENV.parent / "tests" / "fixtures" / "17-google" / "x.txt")}),
-        ("Grep", {"pattern": "x", "path": str(VENV.parent / "appopsy")}),
+        ("Grep", {"pattern": "x", "path": str(VENV.parent / "src" / "appopsy")}),
         ("Glob", {"pattern": "**/*.py", "path": str(VENV.parent / "tests")}),
         ("Glob", {"pattern": "docs/*.md"}),
     ],
@@ -1070,9 +1070,9 @@ def test_sandbox_is_on_strict_and_offline() -> None:
     for key in ("allowRead", "allowWrite", "disabled"):
         assert key not in filesystem, key
     # Nothing outside the sandbox may run code that sandboxed code could change: the
-    # excluded push runs the pre-push hook, which runs .venv, appopsy/ and scripts/.
+    # excluded push runs the pre-push hook, which runs .venv, src/appopsy/ and scripts/.
     for path in ("./.venv", "./.githooks", "./.git/config", "./.git/config.worktree",
-                 "./.git/commondir", "./.git/worktrees", "./.git/hooks", "./appopsy",
+                 "./.git/commondir", "./.git/worktrees", "./.git/hooks", "./src",
                  "./scripts", "./pyproject.toml", "./uv.lock", "./*.py", "./*.pth",
                  "./*.ini", "./*.cfg", "./*.toml", "./.python-version", "./*.dist-info",
                  "./*.egg-info", "./.git/modules", "./.gitmodules",
