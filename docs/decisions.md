@@ -155,8 +155,8 @@ only what it understands.
 **Known limits** (accepted; the guard reduces risk, it isn't a sandbox):
 - `uv run pytest` runs the branch's code with the user's rights, and may sync
   dependencies from the network. Reviewers running tests run the code under
-  review. External contributors' branches therefore only run in the sandbox or
-  a devcontainer.
+  review. External contributors' branches therefore only run on a disposable VM
+  or a separate machine (entry 12 explains why not even in the sandbox).
 - `appopsy mask` reads the app list to mask it, so piping chosen text into it
   answers "is this one of my apps". Reviewers need it, so it stays.
 - Private folders are refused by path. A recursive search from an allowed
@@ -241,8 +241,8 @@ covers code nobody typed: tests, dependencies, git config programs.
 - **Command hooks run outside it, with full access**, and the hooks and settings
   come from the checked-out branch; a branch's settings can turn the sandbox
   off. So the sandbox protects the maintainer's own work, not an untrusted
-  branch: external contributors' branches only run in a devcontainer
-  (CLAUDE.md).
+  branch: external contributors' branches only run on a disposable VM or a
+  separate machine (CLAUDE.md).
 - Read, Grep, Glob, Edit and Write follow permission rules and the guard, not
   the sandbox.
 - Anything committed leaves with the push. The pre-push scans catch app names
